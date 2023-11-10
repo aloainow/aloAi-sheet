@@ -70,6 +70,8 @@ scikit-learn==1.3.0
 scipy==1.11.1
 sentence-transformers==2.2.2
 sentencepiece==0.1.99
+statsmodels
+seaborn
 six==1.16.0
 smmap==5.0.0
 SQLAlchemy==2.0.19
