@@ -60,7 +60,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     st.session_state["temperature"] = temperature
 
 
-llm = OpenAI(temperature=temperature, max_tokens= 2048)  
+llm = OpenAI(temperature=temperature, max_tokens= 4096)  
   
 folder_path = "./files"
 
