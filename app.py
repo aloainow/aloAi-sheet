@@ -144,7 +144,7 @@ if uploaded_file is not None:
 
     for msg in st.session_state.messages:
         if msg["role"] == "assistant":
-            st.chat_message("assistant", avatar= "./logo.png").write(msg["content"])
+            st.chat_message("assistant", avatar= "https://raw.githubusercontent.com/aloainow/aloAi-sheet/main/logo.png").write(msg["content"])
         else:
             st.chat_message(msg["role"]).write(msg["content"])
 
@@ -223,7 +223,7 @@ plt.show()
         )
 
         
-        with st.chat_message("assistant", avatar= "./logo.png"):
+        with st.chat_message("assistant", avatar= "https://raw.githubusercontent.com/aloainow/aloAi-sheet/main/logo.png"):
             st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=True)
             try:
                 # Your code that may raise an error here
