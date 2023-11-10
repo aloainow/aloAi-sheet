@@ -39,7 +39,7 @@ about = st.sidebar.expander("🧠 About")
 sections = [r"""
 Encontre e compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial .
 Faça análises de times e jogadores, identificando oportunidades de mercado insights para o seu time.
-As possibilidades são infinitas." 
+As possibilidades são infinitas.
     """]
 for section in sections:
     about.write(section)
