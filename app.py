@@ -32,7 +32,7 @@ os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
 
 st.set_page_config(page_title="aloAi", page_icon="chart_with_upwards_trend")
 
-st.image("white_logo.png", width= 250)
+st.title("FootIA")
 
 
 about = st.sidebar.expander("🧠 About")
