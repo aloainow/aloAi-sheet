@@ -180,31 +180,7 @@ if uploaded_file is not None:
                                               ,prefix=r"""You are an expert football data analyst. You need to perform analysis on players' data.
                                                You need to create Radar chart when asked.'.
                                                Create a radar chart for the player using the mentioned statistics. 
-                                               Please generate the radar chart when asked using Python and pandas, reference code is provided."
-
-
-player_name = # any name
-# get stats from the columns
-
-# Calculate angles for each statistic
-angles = np.linspace(0, 2 * np.pi, num_stats, endpoint=False)
-
-# Make the plot
-fig, ax = plt.subplots(subplot_kw=dict(polar=True))
-ax.plot(angles, stats_values, linewidth=2, linestyle='solid', label=f"Player player_name")
-ax.fill(angles, stats_values, alpha=0.4)
-
-# Add labels, title, and scale on the radar
-ax.set_xticks(angles)
-ax.set_xticklabels(labels)
-ax.set_yticklabels([])
-ax.set_rlabel_position(180 / num_stats)  # Adjust position of radial labels
-ax.set_rticks([0.5, 1, 1.5, 2])  # Scale values as needed
-
-# Display the radar chart
-plt.title(f"Player's Radar Chart - player_name")
-plt.legend(loc='upper right')
-plt.show()
+                                
                                                
 """
         ,handle_parsing_errors=True,verbose=True, number_of_head_rows= 5
