@@ -21,9 +21,9 @@ from sklearn.linear_model import LinearRegression
 
 
 #api_key1 = st.secrets["GOOGLE_API_KEY"]
-#api_key = st.secrets["OPENAI_API_KEY"]
-os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
-#os.environ["OPENAI_API_KEY"] = api_key
+api_key = st.secrets["OPENAI_API_KEY"]
+#os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
+os.environ["OPENAI_API_KEY"] = api_key
 
 
 
@@ -59,8 +59,8 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     )
     st.session_state["temperature"] = temperature
 
-llm = GooglePalm(temperature=0.9, max_output_tokens= 2048)
-#llm = OpenAI(temperature=temperature)  
+#llm = GooglePalm(temperature=0.9, max_output_tokens= 2048)
+llm = OpenAI(temperature=temperature)  
   
 folder_path = "./files"
 
