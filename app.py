@@ -220,7 +220,7 @@ if uploaded_file is not None:
                                               ,prefix=r"""You are an expert football data analyst. You need to perform analysis on players' data.
                                                                                             
 """
-        ,handle_parsing_errors=True, number_of_head_rows= 3
+        ,handle_parsing_errors=True, number_of_head_rows= 2
         )
 
         
