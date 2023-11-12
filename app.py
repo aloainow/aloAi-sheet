@@ -60,7 +60,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     st.session_state["temperature"] = temperature
 
 #llm = GooglePalm(temperature=0.9, max_output_tokens= 2048)
-llm = OpenAI(temperature=temperature, max_tokens= 4048)  
+llm = OpenAI(temperature=temperature, max_tokens= 3000)  
   
 folder_path = "./files"
 
