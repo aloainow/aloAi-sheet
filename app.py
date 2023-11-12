@@ -24,19 +24,22 @@ from sklearn.linear_model import LinearRegression
 api_key = st.secrets["OPENAI_API_KEY"]
 #os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
 os.environ["OPENAI_API_KEY"] = api_key
+#llm = GooglePalm(temperature=0.9, max_output_tokens= 2048,verbose=True,streaming=True)
+
+
 
 
 
 st.set_page_config(page_title="aloAi", page_icon="chart_with_upwards_trend")
 
-st.title("FootIA")
+st.image("white_logo.png", width= 250)
 
 
 about = st.sidebar.expander("🧠 About")
 sections = [r"""
 Encontre e compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial .
 Faça análises de times e jogadores, identificando oportunidades de mercado insights para o seu time.
-As possibilidades são infinitas.
+As possibilidades são infinitas." 
     """]
 for section in sections:
     about.write(section)
@@ -56,8 +59,32 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     )
     st.session_state["temperature"] = temperature
 
-#llm = GooglePalm(temperature=0.9, max_output_tokens= 2048)
-llm = OpenAI(temperature=temperature, max_tokens= 3500)  
+
+llm = OpenAI(temperature=temperature,verbose=True)  
+
+
+def generate_code(prompt, data_type, missing, shape):
+    
+
+    prompt_template = PromptTemplate(
+    input_variables=['prompt','data_type', 'shape', 'missing'],
+        template="Your a football data analyst. Football Data is loaded as 'df', column names and their types: {data_type}\n\
+        df.shape= {shape}\
+        missing values: {missing}\
+        instructions: Please provide short instructions for the user, user knows python, include column names.\
+        query: {prompt}\
+        Answer: \
+        " 
+    )
+    about_chain = LLMChain(llm=llm, prompt=prompt_template, output_key="about")
+
+
+    chain = SequentialChain(chains=[about_chain], input_variables=["prompt","data_type", "shape", "missing"], output_variables=["about"])
+
+    response = chain.run({'prompt': prompt, 'data_type': data_type, 'shape': shape, 'missing':missing})
+    return response
+    
+
   
 folder_path = "./files"
 
@@ -141,7 +168,7 @@ if uploaded_file is not None:
 
     for msg in st.session_state.messages:
         if msg["role"] == "assistant":
-            st.chat_message("assistant", avatar= "https://raw.githubusercontent.com/aloainow/images/main/logo.png").write(msg["content"])
+            st.chat_message("assistant", avatar= "logo.png").write(msg["content"])
         else:
             st.chat_message(msg["role"]).write(msg["content"])
 
@@ -150,7 +177,23 @@ if uploaded_file is not None:
 
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
+        
+        
+        data = df.head()
+        missing = df.isnull().sum()
+        shape = df.shape
+        columns= df.columns
 
+        variable_type_info = []
+
+        for key, value in data.items():
+            variable_type = type(value)
+            data_type1 = f"'{key}' is of type: {variable_type}"
+            variable_type_info.append(data_type1)
+        data_type = "\n".join(variable_type_info)
+        
+        prompt1 =  generate_code(prompt, missing, shape, columns) 
+        print(prompt1)
         
         memory = ConversationBufferMemory(memory_key="chat_history", input_key="question", human_prefix= "", ai_prefix= "")
 
@@ -173,19 +216,23 @@ if uploaded_file is not None:
         #llm1= ChatOpenAI(temperature=0.7,  model="gpt-3.5-turbo-0613", streaming=True, verbose = True) #incase we need openai
         
         #agent = create_pandas_dataframe_agent(llm1 ,df, agent_type=AgentType.OPENAI_FUNCTIONS
-        agent = create_pandas_dataframe_agent(llm ,df
-        ,handle_parsing_errors=True, number_of_head_rows= 2
+        agent = create_pandas_dataframe_agent(llm ,df , agent = AgentType.OPENAI_FUNCTIONS
+                                              ,prefix=r"""You are an expert football data analyst. You need to perform analysis on players' data.
+                                               You need to create Radar chart when asked.'
+                                               Create a radar chart for the player using the mentioned statistics.                                              
+"""
+        ,handle_parsing_errors=True, number_of_head_rows= 3
         )
 
         
-        with st.chat_message("assistant", avatar= "https://raw.githubusercontent.com/aloainow/images/main/logo.png"):
+        with st.chat_message("assistant", avatar= "logo.png"):
             st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=True)
             try:
                 # Your code that may raise an error here
                 old_stdout = sys.stdout
                 sys.stdout = captured_output = StringIO()
                 
-                response = agent.run(prompt, callbacks=[st_cb])
+                response = agent.run(prompt1, callbacks=[st_cb])
                 fig = plt.gcf()
                 if fig.get_axes():
                             # Adjust the figure size
