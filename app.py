@@ -60,7 +60,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     st.session_state["temperature"] = temperature
 
 
-llm = OpenAI(temperature=temperature,verbose=True)  
+llm = OpenAI(temperature=temperature,max_tokens= 3500)  
 
 
 def generate_code(prompt, data_type, missing, shape):
@@ -69,9 +69,9 @@ def generate_code(prompt, data_type, missing, shape):
     prompt_template = PromptTemplate(
     input_variables=['prompt','data_type', 'shape', 'missing'],
         template="Your a football data analyst who understands protuguese. Football Data is loaded as 'df', column names and their types: {data_type}\n\
-        df.shape= {shape}\
+        df.shape: {shape}\
         missing values: {missing}\
-        instructions: Please provide short instructions for the user, user knows python, include column names.\
+        instructions: Please provide short instructions for the user, user knows python, include correct column names.\
         query: {prompt}\
         Answer: \
         " 
@@ -218,8 +218,7 @@ if uploaded_file is not None:
         #agent = create_pandas_dataframe_agent(llm1 ,df, agent_type=AgentType.OPENAI_FUNCTIONS
         agent = create_pandas_dataframe_agent(llm ,df , agent = AgentType.OPENAI_FUNCTIONS
                                               ,prefix=r"""You are an expert football data analyst. You need to perform analysis on players' data.
-                                               You need to create Radar chart when asked.'
-                                               Create a radar chart for the player using the mentioned statistics.                                              
+                                                                                            
 """
         ,handle_parsing_errors=True, number_of_head_rows= 3
         )
