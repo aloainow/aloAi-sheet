@@ -60,7 +60,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     st.session_state["temperature"] = temperature
 
 
-llm = OpenAI(temperature=temperature,max_tokens= 3500)  
+llm = OpenAI(temperature=temperature,max_tokens= 3000)  
 
 
 def generate_code(prompt, data_type, missing, shape):
