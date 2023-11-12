@@ -183,7 +183,7 @@ if uploaded_file is not None:
                                 
                                                
 """
-        ,handle_parsing_errors=True,verbose=True, number_of_head_rows= 5
+        ,handle_parsing_errors=True,verbose=True, number_of_head_rows= 2
         )
 
         
