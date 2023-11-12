@@ -27,9 +27,6 @@ os.environ["OPENAI_API_KEY"] = api_key
 
 
 
-
-
-
 st.set_page_config(page_title="aloAi", page_icon="chart_with_upwards_trend")
 
 st.title("FootIA")
@@ -60,7 +57,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     st.session_state["temperature"] = temperature
 
 #llm = GooglePalm(temperature=0.9, max_output_tokens= 2048)
-llm = OpenAI(temperature=temperature, max_tokens= 3000)  
+llm = OpenAI(temperature=temperature, max_tokens= 3500)  
   
 folder_path = "./files"
 
