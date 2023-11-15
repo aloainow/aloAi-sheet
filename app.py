@@ -21,10 +21,10 @@ from sklearn.linear_model import LinearRegression
 
 
 #api_key1 = st.secrets["GOOGLE_API_KEY"]
-api_key = st.secrets["OPENAI_API_KEY"]
-#os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
-os.environ["OPENAI_API_KEY"] = api_key
-#llm = GooglePalm(temperature=0.9, max_output_tokens= 2048,verbose=True,streaming=True)
+#api_key = st.secrets["OPENAI_API_KEY"]
+os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
+#os.environ["OPENAI_API_KEY"] = api_key
+llm = GooglePalm(temperature=0.9, max_output_tokens= 2048,verbose=True,streaming=True)
 
 
 
@@ -60,7 +60,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     st.session_state["temperature"] = temperature
 
 
-llm = OpenAI(temperature=temperature,max_tokens= 3000)  
+#llm = OpenAI(temperature=temperature,max_tokens= 3000)  
 
 
 def generate_code(prompt, data_type, missing, shape):
