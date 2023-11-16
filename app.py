@@ -71,7 +71,7 @@ def generate_code(prompt, data_type, missing, shape):
         template="Your a football data analyst who understands protuguese. Football Data is loaded as 'df', column names and their types: {data_type}\n\
         df.shape: {shape}\
         missing values: {missing}\
-        instructions: Please provide short instructions for the user, user knows python, include correct column names.\
+        instructions: Please provide short python code for the user, user knows python, include correct column names.\
         query: {prompt}\
         Answer: \
         " 
