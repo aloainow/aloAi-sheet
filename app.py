@@ -21,10 +21,11 @@ from sklearn.linear_model import LinearRegression
 
 
 #api_key1 = st.secrets["GOOGLE_API_KEY"]
-#api_key = st.secrets["OPENAI_API_KEY"]
+api_key = st.secrets["OPENAI_API_KEY"]
 os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
-#os.environ["OPENAI_API_KEY"] = api_key
-llm = GooglePalm(temperature=0.1, max_output_tokens= 2048,verbose=True,streaming=True)
+os.environ["OPENAI_API_KEY"] = api_key
+llm1 = OpenAI(temperature=temperature,max_tokens= 2048)  
+llm2 = GooglePalm(temperature=0.1, max_output_tokens= 2048,verbose=True,streaming=True)
 
 
 
@@ -60,7 +61,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     st.session_state["temperature"] = temperature
 
 
-#llm = OpenAI(temperature=temperature,max_tokens= 3000)  
+
 
 
 def generate_code(prompt, data_type, missing, shape):
@@ -76,7 +77,7 @@ def generate_code(prompt, data_type, missing, shape):
         Answer: \
         " 
     )
-    about_chain = LLMChain(llm=llm, prompt=prompt_template, output_key="about")
+    about_chain = LLMChain(llm=llm1, prompt=prompt_template, output_key="about")
 
 
     chain = SequentialChain(chains=[about_chain], input_variables=["prompt","data_type", "shape", "missing"], output_variables=["about"])
@@ -193,7 +194,7 @@ if uploaded_file is not None:
         data_type = "\n".join(variable_type_info)
         
         prompt1 =  generate_code(prompt, missing, shape, columns) 
-        print(prompt1)
+      
         
         memory = ConversationBufferMemory(memory_key="chat_history", input_key="question", human_prefix= "", ai_prefix= "")
 
@@ -216,7 +217,7 @@ if uploaded_file is not None:
         #llm1= ChatOpenAI(temperature=0.7,  model="gpt-3.5-turbo-0613", streaming=True, verbose = True) #incase we need openai
         
         #agent = create_pandas_dataframe_agent(llm1 ,df, agent_type=AgentType.OPENAI_FUNCTIONS
-        agent = create_pandas_dataframe_agent(llm ,df , agent = AgentType.OPENAI_FUNCTIONS
+        agent = create_pandas_dataframe_agent(llm2 ,df , agent = AgentType.OPENAI_FUNCTIONS
                                               ,prefix=r"""You are an expert football data analyst. You need to perform analysis on players' data.
                                                                                             
 """
