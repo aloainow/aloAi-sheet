@@ -25,7 +25,7 @@ api_key = st.secrets["OPENAI_API_KEY"]
 os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
 os.environ["OPENAI_API_KEY"] = api_key
 
-llm2 = GooglePalm(temperature=0.5, max_output_tokens= 2048)
+
 
 
 
@@ -61,7 +61,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     st.session_state["temperature"] = temperature
 
 llm1 = ChatOpenAI(temperature = temperature)  
-
+llm2 = GooglePalm(temperature=temperature, max_output_tokens= 2048)
 
 
 def generate_code(prompt, data_type, missing, shape):
