@@ -69,10 +69,11 @@ def generate_code(prompt, data_type, missing, shape):
 
     prompt_template = PromptTemplate(
     input_variables=['prompt','data_type', 'shape', 'missing'],
-        template="Your a football data analyst who understands protuguese. Football Data is loaded as 'df', column names and their types: {data_type}\n\
+        template="Your a football data analyst who understands protuguese. Football Data is loaded as 'df' is already loaded as 'df'\
+        column names and their types: {data_type}\n\
         df.shape: {shape}\
         missing values: {missing}\
-        instructions: Please provide short python code for the user, user knows python, include correct column names.\
+        Please provide short executeable python code, I knows python, include correct column names.\
         query: {prompt}\
         Answer: \
         " 
