@@ -24,8 +24,8 @@ from sklearn.linear_model import LinearRegression
 api_key = st.secrets["OPENAI_API_KEY"]
 os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
 os.environ["OPENAI_API_KEY"] = api_key
-llm1 = ChatOpenAI()  
-llm2 = GooglePalm(temperature=0.5, max_output_tokens= 2048,verbose=True,streaming=True)
+llm1 = OpenAI(temperature = 0.5)  
+llm2 = GooglePalm(temperature=0.5, max_output_tokens= 2048)
 
 
 
