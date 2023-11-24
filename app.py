@@ -26,11 +26,6 @@ os.environ["GOOGLE_API_KEY"] ="AIzaSyD29fEos3V6S2L-AGSQgNu03GqZEIgJads"
 os.environ["OPENAI_API_KEY"] = api_key
 
 
-
-
-
-
-
 st.set_page_config(page_title="aloAi", page_icon="chart_with_upwards_trend")
 
 st.image("white_logo.png", width= 250)
@@ -51,17 +46,17 @@ TEMPERATURE_MAX_VALUE = 1.0
 TEMPERATURE_DEFAULT_VALUE = 0.5
 TEMPERATURE_STEP = 0.01
 with st.sidebar.expander("🛠️Tools", expanded=False):
-    temperature = st.slider(
+    temperature1 = st.slider(
         label="Temperature",
         min_value=TEMPERATURE_MIN_VALUE,
         max_value=TEMPERATURE_MAX_VALUE,
         value=TEMPERATURE_DEFAULT_VALUE,
         step=TEMPERATURE_STEP,
     )
-    st.session_state["temperature"] = temperature
+    st.session_state["temperature"] = temperature1
 
-llm1 = ChatOpenAI(temperature = temperature)  
-llm2 = GooglePalm(temperature=temperature, max_output_tokens= 2048)
+llm1 = ChatOpenAI(temperature = temperature1)  
+llm2 = GooglePalm(temperature=0.5, max_output_tokens= 2048)
 
 
 def generate_code(prompt, data_type, missing, shape):
