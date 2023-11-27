@@ -56,7 +56,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     st.session_state["temperature"] = temperature1
 
 llm1 = ChatOpenAI(temperature = temperature1)  
-llm2 = GooglePalm(temperature=0.5, max_output_tokens= 2048, max_output_tokens= 2048)
+llm2 = GooglePalm(temperature=0.5, max_tokens= 2048, max_output_tokens= 2048)
 
 
 def generate_code(prompt, data_type, missing, shape):
