@@ -26,9 +26,9 @@ os.environ["GOOGLE_API_KEY"] ="AIzaSyD8GU181TwkSZNoqVhKntAiHzUzA8uyFsI"
 os.environ["OPENAI_API_KEY"] = api_key
 
 
-st.set_page_config(page_title="aloAi", page_icon="chart_with_upwards_trend")
+st.set_page_config(page_title="FootIA", page_icon="chart_with_upwards_trend")
 
-st.image("white_logo.png", width= 250)
+st.image("FootIA", width= 250)
 
 
 about = st.sidebar.expander("🧠 About")
