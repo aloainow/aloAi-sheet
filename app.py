@@ -28,7 +28,7 @@ os.environ["OPENAI_API_KEY"] = api_key
 
 st.set_page_config(page_title="FootIA", page_icon="chart_with_upwards_trend")
 
-st.image("FootIA", width= 250)
+st.title("FootIA")
 
 
 about = st.sidebar.expander("🧠 About")
