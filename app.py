@@ -26,15 +26,15 @@ os.environ["GOOGLE_API_KEY"] ="AIzaSyD8GU181TwkSZNoqVhKntAiHzUzA8uyFsI"
 os.environ["OPENAI_API_KEY"] = api_key
 
 
-st.set_page_config(page_title="FootIA", page_icon="chart_with_upwards_trend")
+st.set_page_config(page_title="BasketIA 🏀", page_icon="chart_with_upwards_trend")
 
-st.title("FootIA")
+st.title("BasketIA 🏀")
 
 
 about = st.sidebar.expander("🧠 About")
 sections = [r"""
 Encontre e compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial .
-Faça análises de times e jogadores, identificando oportunidades de mercado insights para o seu time.
+Faça análises de times e jogadores, recebendo insights. A database desse demo conta apenas dados do campeonato mundial masculino de basquete de 2023,
 As possibilidades são infinitas." 
     """]
 for section in sections:
@@ -64,7 +64,7 @@ def generate_code(prompt, data_type, missing, shape):
 
     prompt_template = PromptTemplate(
     input_variables=['prompt','data_type', 'shape', 'missing'],
-        template="Your a football data analyst who understands protuguese. Football Data is loaded as 'df' is already loaded as 'df'\
+        template="You are a basketball data analyst who understands portuguese. Basketball Data is loaded as 'df' is already loaded as 'df'\
         column names and their types: {data_type}\n\
         df.shape: {shape}\
         missing values: {missing}\
@@ -154,8 +154,8 @@ def load_data(uploaded_file):
         return None
 
 if "messages" not in st.session_state or st.sidebar.button("Limpar histórico de conversa"):
-    st.session_state["messages"] = [{"role": "assistant", "content": r""" Olá, através de prompts, encontre e compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial .
-Faça análises de times e jogadores, identificando oportunidades de mercado insights para o seu time.
+    st.session_state["messages"] = [{"role": "assistant", "content": r""" Olá, através de prompts, compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial .
+Faça análises de times e jogadores, identificando  insights para o seu time.
 As possibilidades são infinitas.
 """}]
     st.session_state['history']  = []
