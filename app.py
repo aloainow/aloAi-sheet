@@ -214,10 +214,8 @@ if uploaded_file is not None:
         
         #agent = create_pandas_dataframe_agent(llm1 ,df, agent_type=AgentType.OPENAI_FUNCTIONS
         agent = create_pandas_dataframe_agent(llm2 ,df , agent = AgentType.OPENAI_FUNCTIONS
-                                              ,prefix=r"""You are an expert football data analyst. You need to perform analysis on players' data.
-                                                                                            
-"""
-        ,handle_parsing_errors=True, number_of_head_rows= 2
+                                             
+        ,handle_parsing_errors=True, number_of_head_rows= 4
         )
 
         
