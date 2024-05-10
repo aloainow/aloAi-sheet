@@ -64,7 +64,7 @@ def generate_code(prompt, data_type, missing, shape):
 
     prompt_template = PromptTemplate(
     input_variables=['prompt','data_type', 'shape', 'missing'],
-        template="You are a basketball data analyst who understands portuguese. Basketball Data is loaded as 'df' is already loaded as 'df'\
+        template="You are a basketball data analyst who understands portuguese. You will answer based only on the data that is on Basketball Data is loaded as 'df' is already loaded as 'df'\
         column names and their types: {data_type}\n\
         df.shape: {shape}\
         missing values: {missing}\
