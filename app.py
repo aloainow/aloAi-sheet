@@ -22,7 +22,7 @@ from sklearn.linear_model import LinearRegression
 
 #api_key1 = st.secrets["GOOGLE_API_KEY"]
 api_key = st.secrets["OPENAI_API_KEY"]
-os.environ["GOOGLE_API_KEY"] ="AIzaSyD8GU181TwkSZNoqVhKntAiHzUzA8uyFsI"
+os.environ["GOOGLE_API_KEY"] ="AIzaSyCFzbDIJaYPGEevZsdv3_HJWsb2u86t9KU"
 os.environ["OPENAI_API_KEY"] = api_key
 
 
