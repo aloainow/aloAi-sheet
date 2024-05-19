@@ -34,7 +34,7 @@ st.title("BasketIA 🏀")
 about = st.sidebar.expander("🧠 About")
 sections = [r"""
 Encontre e compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial .
-Faça análises de times e jogadores, recebendo insights. A database desse demo conta apenas dados do campeonato mundial masculino de basquete de 2023,
+Faça análises jogadores, recebendo insights. A database dessa versão possui todos os jogadores brasileiros que atuaram nas principais ligas da Europa, EUA( HS, Universitário e NBA), Brasil e principais ligas da AL.
 As possibilidades são infinitas." 
     """]
 for section in sections:
