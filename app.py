@@ -51,8 +51,20 @@ anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
 
 def load_csv_data():
     try:
-        df = pd.read_csv('Stats Jogadores torneios cbb  REF JOGADORES.csv')
+        # Nome correto do arquivo
+        file_path = 'Jogadores Brasileiros FULL 23-24 Season - Página1-2.csv'
+        
+        # Se não encontrar no diretório principal, tentar outros diretórios
+        if not os.path.exists(file_path):
+            file_path = os.path.join('files', 'Jogadores Brasileiros FULL 23-24 Season - Página1-2.csv')
+        
+        if not os.path.exists(file_path):
+            st.error(f"Arquivo CSV não encontrado no caminho: {file_path}")
+            return None, None, None, None, None
+            
+        df = pd.read_csv(file_path)
         return df, df.head(), df.isnull().sum(), df.shape, df.columns
+        
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {e}")
         return None, None, None, None, None
@@ -87,10 +99,9 @@ def generate_code(prompt, data_type, missing, shape):
         st.error(f"Erro ao gerar código: {e}")
         return None
 
-# Download Component
 def download_csv():
     try:
-        df = pd.read_csv('Stats Jogadores torneios cbb  REF JOGADORES.csv')
+        df = pd.read_csv('Jogadores Brasileiros FULL 23-24 Season - Página1-2.csv')
         
         # Remover duplicatas
         df_clean = df.drop_duplicates(subset=['response.data.firstName', 'response.data.familyName'])
@@ -103,7 +114,7 @@ def download_csv():
         st.download_button(
             label="📥 Baixar CSV sem duplicatas",
             data=csv_buffer.getvalue(),
-            file_name="jogadores_sem_duplicatas.csv",
+            file_name="jogadores_brasileiros_sem_duplicatas.csv",
             mime="text/csv"
         )
         
