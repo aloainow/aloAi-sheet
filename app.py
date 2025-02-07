@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 from langchain.agents import AgentType
 from langchain.tools.python.tool import PythonAstREPLTool
 from langchain.callbacks import StreamlitCallbackHandler
-from langchain.chat_models import ChatAnthropic
-from langchain_anthropic import ChatAnthropic  # Nova importação
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_anthropic import ChatAnthropic
 from langchain.chains import LLMChain, SequentialChain
 from langchain.memory import ConversationBufferMemory
 from langchain.agents import create_pandas_dataframe_agent
@@ -42,8 +42,8 @@ anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
 
 # Inicialização do modelo
 llm = ChatAnthropic(
-    anthropic_api_key=anthropic_api_key,
-    model_name="claude-3-sonnet-20240229",
+    api_key=anthropic_api_key,
+    model="claude-3-sonnet-20240229",
     temperature=st.session_state["temperature"],
-    max_tokens=4096
+    max_tokens_to_sample=4096
 )
