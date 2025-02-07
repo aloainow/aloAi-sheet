@@ -14,7 +14,7 @@ import statsmodels as sm
 import seaborn as sns
 import os
 import sys
-from io import StringIO, BytesIO
+from io import BytesIO
 from sklearn.linear_model import LinearRegression
 
 # Configuração da página
@@ -51,22 +51,27 @@ anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
 
 def load_csv_data():
     try:
-        # Nome correto do arquivo
-        file_path = 'Jogadores Brasileiros FULL 23-24 Season - Página1-2.csv'
-        
-        # Se não encontrar no diretório principal, tentar outros diretórios
+        # Caminho direto para o arquivo na pasta files
+        file_path = os.path.join('files', 'Jogadores Brasileiros FULL 23-24 Season - Página1-2.csv')
+            
         if not os.path.exists(file_path):
-            file_path = os.path.join('files', 'Jogadores Brasileiros FULL 23-24 Season - Página1-2.csv')
-        
-        if not os.path.exists(file_path):
-            st.error(f"Arquivo CSV não encontrado no caminho: {file_path}")
+            st.error(f"Erro: Arquivo não encontrado em {file_path}")
+            print(f"Tentando acessar arquivo em: {file_path}")  # Para debugging
             return None, None, None, None, None
             
+        # Carrega o arquivo
         df = pd.read_csv(file_path)
+        
+        # Mostrar informações básicas sobre o dataset
+        st.sidebar.markdown("### Informações do Dataset")
+        st.sidebar.write(f"Total de registros: {len(df)}")
+        st.sidebar.write(f"Colunas: {len(df.columns)}")
+        
         return df, df.head(), df.isnull().sum(), df.shape, df.columns
         
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {e}")
+        print(f"Erro detalhado: {e}")  # Para debugging
         return None, None, None, None, None
 
 def generate_code(prompt, data_type, missing, shape):
@@ -98,34 +103,6 @@ def generate_code(prompt, data_type, missing, shape):
     except Exception as e:
         st.error(f"Erro ao gerar código: {e}")
         return None
-
-def download_csv():
-    try:
-        df = pd.read_csv('Jogadores Brasileiros FULL 23-24 Season - Página1-2.csv')
-        
-        # Remover duplicatas
-        df_clean = df.drop_duplicates(subset=['response.data.firstName', 'response.data.familyName'])
-        
-        # Criar CSV em memória
-        csv_buffer = StringIO()
-        df_clean.to_csv(csv_buffer, index=False)
-        
-        # Download button
-        st.download_button(
-            label="📥 Baixar CSV sem duplicatas",
-            data=csv_buffer.getvalue(),
-            file_name="jogadores_brasileiros_sem_duplicatas.csv",
-            mime="text/csv"
-        )
-        
-        # Mostrar informações
-        st.write("### Informações do arquivo:")
-        st.write(f"- Arquivo original: {len(df)} registros")
-        st.write(f"- Arquivo sem duplicatas: {len(df_clean)} registros")
-        st.write(f"- Total de registros removidos: {len(df) - len(df_clean)}")
-        
-    except Exception as e:
-        st.error(f"Erro ao processar arquivo: {e}")
 
 # Interface principal
 if "messages" not in st.session_state or st.sidebar.button("Limpar histórico de conversa"):
@@ -187,11 +164,8 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
             except Exception as e:
                 st.error("Problema na análise dos dados! Por favor, tente novamente com uma pergunta diferente.")
                 st.stop()
-
-# Adicionar o componente de download
-st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Download CSV Processado"):
-    download_csv()
+    else:
+        st.warning("Erro ao carregar os dados. Verifique se o arquivo está no local correto.")
 
 # Esconder elementos do Streamlit
 hide_streamlit_style = """
