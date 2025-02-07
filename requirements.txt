@@ -98,3 +98,7 @@ validators==0.20.0
 watchdog==3.0.0
 yarl==1.9.2
 zipp==3.16.2
+langchain-anthropic==0.0.8
+anthropic==0.8.1
+langchain-core==0.1.27
+
