@@ -17,7 +17,6 @@ import os
 import sys
 from io import StringIO, BytesIO
 from sklearn.linear_model import LinearRegression
-import papa from 'papaparse'
 
 # Configuração da página
 st.set_page_config(page_title="BasketIA 🏀", page_icon="chart_with_upwards_trend")
