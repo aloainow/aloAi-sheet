@@ -18,22 +18,46 @@ import sys
 from io import StringIO, BytesIO
 from sklearn.linear_model import LinearRegression
 
-# Configure a chave da API do Anthropic
+# Configuração da página
+st.set_page_config(page_title="BasketIA 🏀", page_icon="chart_with_upwards_trend")
+st.title("BasketIA 🏀")
+
+# Sobre section
+about = st.sidebar.expander("🧠 About")
+sections = [r"""
+Encontre e compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial.
+Faça análises jogadores, recebendo insights. A database dessa versão possui todos os jogadores brasileiros que atuaram nas principais ligas da Europa, EUA( HS, Universitário e NBA), Brasil e principais ligas da AL.
+As possibilidades são infinitas." 
+    """]
+for section in sections:
+    about.write(section)
+
+# Inicialização da temperatura no session_state
+if "temperature" not in st.session_state:
+    st.session_state["temperature"] = 0.5
+
+# Controles de temperatura na sidebar
+with st.sidebar.expander("🛠️Tools", expanded=False):
+    temperature = st.slider(
+        label="Temperature",
+        min_value=0.0,
+        max_value=1.0,
+        value=st.session_state["temperature"],
+        step=0.01,
+    )
+    st.session_state["temperature"] = temperature
+
+# Configuração do modelo Anthropic
 anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
 os.environ["ANTHROPIC_API_KEY"] = anthropic_api_key
 
-st.set_page_config(page_title="BasketIA 🏀", page_icon="chart_with_upwards_trend")
-
-st.title("BasketIA 🏀")
-
-# Resto do código de configuração da interface permanece igual...
-
-# Modificar a inicialização do modelo para usar o Claude
 llm = ChatAnthropic(
     model="claude-3-sonnet-20240229",
     temperature=st.session_state["temperature"],
     max_tokens=4096
 )
+
+# Resto do seu código permanece igual...
 
 def generate_code(prompt, data_type, missing, shape):
     prompt_template = PromptTemplate(
@@ -51,14 +75,3 @@ def generate_code(prompt, data_type, missing, shape):
     chain = SequentialChain(chains=[about_chain], input_variables=["prompt","data_type", "shape", "missing"], output_variables=["about"])
     response = chain.run({'prompt': prompt, 'data_type': data_type, 'shape': shape, 'missing':missing})
     return response
-
-# No trecho onde você cria o agente, substituir pelo Claude
-agent = create_pandas_dataframe_agent(
-    llm,
-    df,
-    agent_type=AgentType.OPENAI_FUNCTIONS,
-    handle_parsing_errors=True,
-    number_of_head_rows=4
-)
-
-# O resto do código permanece praticamente igual, apenas ajustando as chamadas do modelo quando necessário
