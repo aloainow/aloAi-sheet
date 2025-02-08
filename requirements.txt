@@ -11,12 +11,12 @@ langchain==0.1.9
 langchain-experimental==0.0.52
 langchain-anthropic==0.1.1
 langchain-core==0.1.27
-anthropic==0.17.0
+anthropic==0.45.2         # Atualizado para uma versão mais nova
 langsmith==0.1.27
 
 # Utilidades e formatação
 typing_extensions==4.10.0
-pydantic==1.10.7        # Downgrade para o pydantic v1 para compatibilidade
+pydantic==1.10.7          # Downgrade para pydantic v1
 python-dotenv==1.0.0
 
 # Processamento de dados e análise
