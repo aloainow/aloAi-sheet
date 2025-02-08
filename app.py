@@ -112,8 +112,8 @@ def generate_code(prompt, columns, missing, shape):
         llm = ChatAnthropic(
             api_key=anthropic_api_key,
             model="claude-3-sonnet-20240229",
-            temperature=st.session_state["temperature"],
-            max_tokens_to_sample=4096
+            max_tokens_to_sample=4096,
+            temperature=st.session_state["temperature"]
         )
         
         about_chain = LLMChain(llm=llm, prompt=prompt_template, output_key="about")
@@ -123,9 +123,6 @@ def generate_code(prompt, columns, missing, shape):
             output_variables=["about"]
         )
         
-        # Debug log
-        print("Gerando resposta para prompt:", prompt)
-        
         response = chain.run({
             'prompt': prompt, 
             'columns': columns, 
@@ -133,9 +130,7 @@ def generate_code(prompt, columns, missing, shape):
             'missing': missing
         })
         
-        # Debug log
-        print("Resposta gerada:", response)
-        
+        print("Código gerado:", response)  # Debug log
         return response
         
     except Exception as e:
@@ -185,10 +180,10 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
                             temperature=st.session_state["temperature"]
                         ),
                         df,
-                        agent_type=AgentType.OPENAI_FUNCTIONS,
+                        agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
                         handle_parsing_errors=True,
                         number_of_head_rows=4,
-                        allow_dangerous_code=True  # Adicionando permissão para execução de código
+                        allow_dangerous_code=True
                     )
                     
                     # Executar análise
