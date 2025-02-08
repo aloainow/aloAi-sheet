@@ -9,10 +9,12 @@ streamlit-chat==0.1.1
 # LangChain e relacionados
 langchain==0.1.9
 langchain-experimental==0.0.52
-langchain-anthropic==0.1.1
 langchain-core==0.1.27
-anthropic==0.45.2
+# Removemos langchain-anthropic, pois usaremos o modelo da OpenAI
 langsmith==0.1.27
+
+# Modelos de linguagem
+openai==0.27.0
 
 # Utilidades e formatação
 typing_extensions==4.10.0
