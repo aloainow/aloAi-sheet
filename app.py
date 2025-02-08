@@ -51,17 +51,19 @@ anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
 
 def load_csv_data():
     try:
-        # Nome exato do arquivo como está na pasta files
-        file_path = os.path.join('files', 'Jogadores Brasileiros FULL 23-24 Season - Página1-2.csv')
+        # Nome exato do arquivo com o espaço duplo
+        file_path = os.path.join('files', 'Jogadores Brasileiros  FULL 23-24 Season - Página1-2.csv')
             
         if not os.path.exists(file_path):
-            st.error(f"Erro: Arquivo não encontrado em {file_path}")
-            print(f"Tentando acessar arquivo em: {file_path}")  # Para debugging
-            print("Conteúdo da pasta files:", os.listdir('files'))  # Listar arquivos para debug
+            st.error("Erro ao carregar arquivo. Debug info:")
+            st.write("Tentando acessar arquivo em:", file_path)
+            st.write("Arquivos disponíveis em files/:", os.listdir('files'))
             return None, None, None, None, None
             
         # Carrega o arquivo
         df = pd.read_csv(file_path)
+        print("Arquivo carregado com sucesso!")
+        print("Colunas:", df.columns.tolist())
         
         # Mostrar informações básicas sobre o dataset
         st.sidebar.markdown("### Informações do Dataset")
@@ -71,8 +73,10 @@ def load_csv_data():
         return df, df.head(), df.isnull().sum(), df.shape, df.columns
         
     except Exception as e:
-        st.error(f"Erro ao carregar arquivo: {e}")
-        print(f"Erro detalhado: {e}")  # Para debugging
+        st.error(f"Erro ao carregar arquivo: {str(e)}")
+        print(f"Erro detalhado: {str(e)}")
+        print("Diretório atual:", os.getcwd())
+        print("Conteúdo do diretório files:", os.listdir('files'))
         return None, None, None, None, None
 
 def generate_code(prompt, data_type, missing, shape):
