@@ -25,17 +25,36 @@ from langchain_anthropic import ChatAnthropic as BaseChatAnthropic
 import anthropic
 
 # ─────────────────────────────────────────────
-# Subclasse de ChatAnthropic que evita passar 'proxies' e que também
-# "corrige" o problema do api_key no método messages.create.
+# Definição da wrapper para o objeto de mensagens
+# ─────────────────────────────────────────────
+class MessagesWrapper:
+    """
+    Essa classe envolve o objeto messages do client da Anthropic,
+    interceptando a chamada do método create para remover o parâmetro 'api_key'.
+    """
+    def __init__(self, messages):
+        self._messages = messages
+
+    def create(self, *args, **kwargs):
+        # Remove 'api_key' se presente
+        kwargs.pop("api_key", None)
+        return self._messages.create(*args, **kwargs)
+
+    def __getattr__(self, attr):
+        return getattr(self._messages, attr)
+
+# ─────────────────────────────────────────────
+# Subclasse de ChatAnthropic que evita passar 'proxies' e
+# encapsula o objeto messages com a MessagesWrapper
 # ─────────────────────────────────────────────
 class ChatAnthropicNoProxies(BaseChatAnthropic):
     """
-    Esta subclasse constrói o client da Anthropic sem incluir o parâmetro
-    'proxies' e, logo após a criação, faz um patch no método messages.create
-    para remover 'api_key' dos argumentos.
+    Essa subclasse constrói o client da Anthropic sem incluir o parâmetro 'proxies'
+    e, após a criação, envolve o atributo messages com uma wrapper que remove 'api_key'
+    ao chamar o método create.
     """
     def _init_client(self):
-        # Constrói manualmente os parâmetros que queremos passar para o client.
+        # Constrói manualmente os parâmetros que serão passados ao client.
         client_kwargs = {
             "model": self.model,
             "max_tokens_to_sample": getattr(self, "max_tokens_to_sample", None),
@@ -43,18 +62,9 @@ class ChatAnthropicNoProxies(BaseChatAnthropic):
         }
         # Cria o client passando self.api_key como argumento posicional.
         client = anthropic.Client(self.api_key, **client_kwargs)
-        
-        # Se o client tiver o atributo 'messages' com o método 'create', fazemos o patch:
-        if hasattr(client, "messages") and hasattr(client.messages, "create"):
-            original_create = client.messages.create
-
-            def patched_create(*args, **kwargs):
-                # Remove 'api_key' dos kwargs, se existir.
-                kwargs.pop("api_key", None)
-                return original_create(*args, **kwargs)
-
-            client.messages.create = patched_create
-        
+        # Se o client tiver o atributo 'messages', substituímos por uma wrapper.
+        if hasattr(client, "messages"):
+            client.messages = MessagesWrapper(client.messages)
         return client
 
 # ─────────────────────────────────────────────
@@ -132,7 +142,7 @@ Answer:
 """
         )
         
-        # Usa a classe modificada que corrige os problemas com proxies e api_key.
+        # Instancia a classe modificada que evita os problemas com proxies e api_key.
         llm = ChatAnthropicNoProxies(
             api_key=anthropic_api_key,
             model="claude-3-sonnet-20240229",
@@ -224,7 +234,7 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
     else:
         st.warning("Erro ao carregar os dados. Verifique se existem arquivos CSV na pasta 'files'.")
 
-# Esconder elementos padrão do Streamlit
+# Esconde elementos padrão do Streamlit
 hide_streamlit_style = """
 <style>
 #MainMenu {visibility: hidden;}
