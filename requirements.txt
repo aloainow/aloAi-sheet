@@ -12,7 +12,7 @@ langchain-experimental==0.0.52
 langchain-anthropic==0.1.1
 langchain-core==0.1.27
 anthropic==0.17.0
-langsmith==0.0.83
+langsmith==0.1.27
 
 # Utilidades e formatação
 typing_extensions==4.10.0
@@ -32,6 +32,6 @@ urllib3==2.0.4
 # Utilitários do sistema
 PyYAML==6.0.1
 
-# Machine Learning extras
-torch==2.0.1
-transformers==4.31.0
+# Machine Learning extras (opcionais)
+# torch==2.0.1
+# transformers==4.31.0
