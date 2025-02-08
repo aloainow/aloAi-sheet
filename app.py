@@ -26,19 +26,22 @@ from langchain_anthropic import ChatAnthropic as BaseChatAnthropic
 import anthropic
 
 # ─────────────────────────────────────────────
-# Monkey Patch global para corrigir o erro:
+# Monkey Patch opcional para corrigir o erro:
 # "Messages.create() got an unexpected keyword argument 'api_key'"
+# Se o atributo 'Messages' existir, fazemos o patch; caso contrário, ignoramos.
 # ─────────────────────────────────────────────
-# Salva a implementação original de Messages.create
-original_messages_create = anthropic.Messages.create
+try:
+    original_messages_create = anthropic.Messages.create
 
-def patched_messages_create(*args, **kwargs):
-    # Remove o parâmetro 'api_key' se estiver presente
-    if "api_key" in kwargs:
-        del kwargs["api_key"]
-    return original_messages_create(*args, **kwargs)
+    def patched_messages_create(*args, **kwargs):
+        if "api_key" in kwargs:
+            del kwargs["api_key"]
+        return original_messages_create(*args, **kwargs)
 
-anthropic.Messages.create = patched_messages_create
+    anthropic.Messages.create = patched_messages_create
+    print("Patch aplicado em anthropic.Messages.create.")
+except AttributeError:
+    print("anthropic.Messages não encontrado; patch ignorado.")
 
 # ─────────────────────────────────────────────
 # Subclasse de ChatAnthropic que remove o parâmetro 'proxies'
@@ -48,8 +51,8 @@ class ChatAnthropicNoProxies(BaseChatAnthropic):
     """
     Essa subclasse ajusta a inicialização do client:
       - Remove o argumento 'proxies'
-      - Remove o 'api_key' dos kwargs e passa-o como argumento posicional,
-        evitando que seja repassado para métodos internos (como Messages.create)
+      - Remove 'api_key' dos kwargs e passa-o como argumento posicional,
+        evitando que seja repassado para métodos internos.
     """
     def _init_client(self):
         try:
@@ -153,7 +156,7 @@ def generate_code(prompt, columns, missing, shape):
             """
         )
         
-        # Utiliza a classe modificada para evitar os problemas com 'proxies' e 'api_key'
+        # Utiliza a classe modificada para evitar problemas com 'proxies' e 'api_key'
         llm = ChatAnthropicNoProxies(
             api_key=anthropic_api_key,
             model="claude-3-sonnet-20240229",
