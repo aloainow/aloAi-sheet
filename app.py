@@ -51,22 +51,35 @@ anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
 
 def load_csv_data():
     try:
-        # Nome exato do arquivo com o espaço duplo
-        file_path = os.path.join('files', 'Jogadores Brasileiros  FULL 23-24 Season - Página1-2.csv')
-            
-        if not os.path.exists(file_path):
-            st.error("Erro ao carregar arquivo. Debug info:")
-            st.write("Tentando acessar arquivo em:", file_path)
-            st.write("Arquivos disponíveis em files/:", os.listdir('files'))
+        # Lista todos os arquivos na pasta files
+        arquivos = os.listdir('files')
+        
+        # Filtra apenas os arquivos CSV
+        arquivos_csv = [f for f in arquivos if f.endswith('.csv')]
+        
+        if not arquivos_csv:
+            st.error("Nenhum arquivo CSV encontrado na pasta 'files'")
             return None, None, None, None, None
             
-        # Carrega o arquivo
-        df = pd.read_csv(file_path)
-        print("Arquivo carregado com sucesso!")
+        # Se houver mais de um arquivo, permite a seleção
+        if len(arquivos_csv) > 1:
+            arquivo_selecionado = st.sidebar.selectbox(
+                "Selecione o arquivo para análise:",
+                arquivos_csv
+            )
+        else:
+            arquivo_selecionado = arquivos_csv[0]
+            
+        # Carrega o arquivo selecionado
+        file_path = os.path.join('files', arquivo_selecionado)
+        df = pd.read_csv(file_path, encoding='utf-8')
+        
+        print(f"Arquivo carregado: {arquivo_selecionado}")
         print("Colunas:", df.columns.tolist())
         
         # Mostrar informações básicas sobre o dataset
         st.sidebar.markdown("### Informações do Dataset")
+        st.sidebar.write(f"Dataset atual: {arquivo_selecionado}")
         st.sidebar.write(f"Total de registros: {len(df)}")
         st.sidebar.write(f"Colunas: {len(df.columns)}")
         
@@ -170,7 +183,7 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
                 st.error("Problema na análise dos dados! Por favor, tente novamente com uma pergunta diferente.")
                 st.stop()
     else:
-        st.warning("Erro ao carregar os dados. Verifique se o arquivo está no local correto.")
+        st.warning("Erro ao carregar os dados. Verifique se existem arquivos CSV na pasta 'files'.")
 
 # Esconder elementos do Streamlit
 hide_streamlit_style = """
