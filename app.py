@@ -11,7 +11,7 @@ from streamlit_chat import message
 import statsmodels as sm
 
 # ─────────────────────────────────────────────
-# Importações do LangChain e Anthropic
+# Importações do LangChain
 # ─────────────────────────────────────────────
 from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain.agents import AgentType
@@ -20,52 +20,8 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain, SequentialChain
 from langchain.memory import ConversationBufferMemory
 
-# Importa a classe base do ChatAnthropic e o pacote anthropic
-from langchain_anthropic import ChatAnthropic as BaseChatAnthropic
-import anthropic
-
-# ─────────────────────────────────────────────
-# Definição da wrapper para o objeto de mensagens
-# ─────────────────────────────────────────────
-class MessagesWrapper:
-    """
-    Essa classe envolve o objeto messages do client da Anthropic,
-    interceptando a chamada do método create para remover o parâmetro 'api_key'.
-    """
-    def __init__(self, messages):
-        self._messages = messages
-
-    def create(self, *args, **kwargs):
-        # Remove 'api_key' se presente
-        kwargs.pop("api_key", None)
-        return self._messages.create(*args, **kwargs)
-
-    def __getattr__(self, attr):
-        return getattr(self._messages, attr)
-
-# ─────────────────────────────────────────────
-# Subclasse de ChatAnthropic que evita passar 'proxies' e
-# encapsula o objeto messages com a MessagesWrapper
-# ─────────────────────────────────────────────
-class ChatAnthropicNoProxies(BaseChatAnthropic):
-    """
-    Essa subclasse constrói o client da Anthropic sem incluir o parâmetro 'proxies'
-    e, após a criação, envolve o atributo messages com uma wrapper que remove 'api_key'
-    ao chamar o método create.
-    """
-    def _init_client(self):
-        # Constrói manualmente os parâmetros que serão passados ao client.
-        client_kwargs = {
-            "model": self.model,
-            "max_tokens_to_sample": getattr(self, "max_tokens_to_sample", None),
-            "temperature": self.temperature,
-        }
-        # Cria o client passando self.api_key como argumento posicional.
-        client = anthropic.Client(self.api_key, **client_kwargs)
-        # Se o client tiver o atributo 'messages', substituímos por uma wrapper.
-        if hasattr(client, "messages"):
-            client.messages = MessagesWrapper(client.messages)
-        return client
+# Importa o modelo da OpenAI
+from langchain.chat_models import ChatOpenAI
 
 # ─────────────────────────────────────────────
 # Configuração da página e interface do Streamlit
@@ -95,8 +51,8 @@ with st.sidebar.expander("🛠️ Tools", expanded=False):
     )
     st.session_state["temperature"] = temperature
 
-# Configuração do modelo Claude (utilize sua chave do Anthropic)
-anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
+# Configuração do modelo OpenAI (use sua chave do OpenAI)
+openai_api_key = st.secrets["OPENAI_API_KEY"]
 
 # ─────────────────────────────────────────────
 # Função para carregar os dados CSV
@@ -132,21 +88,20 @@ def generate_code(prompt, columns, missing, shape):
     try:
         prompt_template = PromptTemplate(
             input_variables=['prompt', 'columns', 'shape', 'missing'],
-            template="""You are a basketball data analyst who understands portuguese. You will answer based only on the data that is on Basketball Data is loaded as 'df'
-column names: {columns}
-df.shape: {shape}
-missing values: {missing}
-Please provide short executeable python code, I know python, include correct column names.
-query: {prompt}
+            template="""You are a basketball data analyst who understands portuguese. You will answer based only on the data that is loaded in the variable 'df'.
+Column names: {columns}
+DataFrame shape: {shape}
+Missing values: {missing}
+Please provide short, executable Python code. I know Python, so include correct column names.
+Query: {prompt}
 Answer: 
 """
         )
         
-        # Instancia a classe modificada que evita os problemas com proxies e api_key.
-        llm = ChatAnthropicNoProxies(
-            api_key=anthropic_api_key,
-            model="claude-3-sonnet-20240229",
-            max_tokens_to_sample=4096,
+        # Cria o modelo usando ChatOpenAI
+        llm = ChatOpenAI(
+            api_key=openai_api_key,
+            model_name="gpt-3.5-turbo",  # ou "gpt-4" se você tiver acesso
             temperature=st.session_state["temperature"]
         )
         
@@ -199,11 +154,11 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
             try:
                 prompt_response = generate_code(prompt, columns, missing, shape)
                 if prompt_response:
-                    # Cria o agente usando a classe modificada
+                    # Cria o agente usando o modelo ChatOpenAI
                     agent = create_pandas_dataframe_agent(
-                        ChatAnthropicNoProxies(
-                            api_key=anthropic_api_key,
-                            model="claude-3-sonnet-20240229",
+                        ChatOpenAI(
+                            api_key=openai_api_key,
+                            model_name="gpt-3.5-turbo",
                             temperature=st.session_state["temperature"]
                         ),
                         df,
