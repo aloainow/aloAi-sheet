@@ -17,35 +17,39 @@ from io import BytesIO
 from sklearn.linear_model import LinearRegression
 
 # ─────────────────────────────────────────────
-# Monkey Patch para remover o argumento "proxies"
+# Monkey Patch para remover o argumento "proxies" e tratar o "api_key"
 # ─────────────────────────────────────────────
-# Importa a classe original e o client do pacote anthropic
 from langchain_anthropic import ChatAnthropic as BaseChatAnthropic
 import anthropic
 
 class ChatAnthropicNoProxies(BaseChatAnthropic):
     """
-    Subclasse de ChatAnthropic que remove o argumento 'proxies' na criação do client.
-    Essa alteração evita o erro: "Client.init() got an unexpected keyword argument 'proxies'".
+    Subclasse de ChatAnthropic que ajusta a inicialização do client:
+    - Remove o argumento 'proxies'
+    - Extrai o 'api_key' e o passa como argumento posicional, evitando que
+      ele seja repassado para métodos internos (como Messages.create)
     """
     def _init_client(self):
-        # Tenta obter os argumentos padrão (caso o método _build_client_kwargs exista)
         try:
             client_kwargs = self._build_client_kwargs()
         except AttributeError:
-            # Se não existir, constrói manualmente (ajuste conforme necessário)
             client_kwargs = {
                 "api_key": self.api_key,
                 "model": self.model,
                 "max_tokens_to_sample": getattr(self, "max_tokens_to_sample", None),
                 "temperature": self.temperature
             }
-        # Remove o argumento 'proxies' se estiver presente
+        # Remove o parâmetro 'proxies', se existir
         client_kwargs.pop("proxies", None)
-        return anthropic.Client(**client_kwargs)
+        # Extrai o api_key e o remove dos kwargs
+        api_key = client_kwargs.pop("api_key", self.api_key)
+        # Chama o client passando somente o api_key como argumento posicional.
+        # Outros parâmetros já estão armazenados na instância do ChatAnthropic e
+        # serão usados conforme necessário.
+        return anthropic.Client(api_key)
 
 # ─────────────────────────────────────────────
-# Configuração da página e interface Streamlit
+# Configuração da página e interface do Streamlit
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="BasketIA 🏀", page_icon="chart_with_upwards_trend")
 st.title("BasketIA 🏀")
@@ -74,7 +78,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     )
     st.session_state["temperature"] = temperature
 
-# Configuração do modelo Claude
+# Configuração do modelo Claude (use sua chave do Anthropic)
 anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
 
 # ─────────────────────────────────────────────
@@ -129,7 +133,7 @@ def generate_code(prompt, columns, missing, shape):
             """
         )
         
-        # Utiliza a classe modificada para evitar o erro com 'proxies'
+        # Utiliza a classe modificada para evitar o erro com 'proxies' e o repasse incorreto do api_key
         llm = ChatAnthropicNoProxies(
             api_key=anthropic_api_key,
             model="claude-3-sonnet-20240229",
