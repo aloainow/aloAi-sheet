@@ -74,8 +74,11 @@ def load_csv_data():
         file_path = os.path.join('files', arquivo_selecionado)
         df = pd.read_csv(file_path, encoding='utf-8')
         
+        # Debug logs
         print(f"Arquivo carregado: {arquivo_selecionado}")
         print("Colunas:", df.columns.tolist())
+        st.sidebar.write("DataFrame carregado com sucesso")
+        st.sidebar.write("Primeiras linhas:", df.head())
         
         # Mostrar informações básicas sobre o dataset
         st.sidebar.markdown("### Informações do Dataset")
@@ -92,34 +95,52 @@ def load_csv_data():
         print("Conteúdo do diretório files:", os.listdir('files'))
         return None, None, None, None, None
 
-def generate_code(prompt, data_type, missing, shape):
-    prompt_template = PromptTemplate(
-        input_variables=['prompt','data_type', 'shape', 'missing'],
-        template="""You are a basketball data analyst who understands portuguese. You will answer based only on the data that is on Basketball Data is loaded as 'df' is already loaded as 'df'
-        column names and their types: {data_type}
-        df.shape: {shape}
-        missing values: {missing}
-        Please provide short executeable python code, I knows python, include correct column names.
-        query: {prompt}
-        Answer: 
-        """
-    )
-    
-    llm = ChatAnthropic(
-        api_key=anthropic_api_key,
-        model="claude-3-sonnet-20240229",
-        temperature=st.session_state["temperature"],
-        max_tokens_to_sample=4096
-    )
-    
-    about_chain = LLMChain(llm=llm, prompt=prompt_template, output_key="about")
-    chain = SequentialChain(chains=[about_chain], input_variables=["prompt","data_type", "shape", "missing"], output_variables=["about"])
-    
+def generate_code(prompt, columns, missing, shape):
     try:
-        response = chain.run({'prompt': prompt, 'data_type': data_type, 'shape': shape, 'missing':missing})
+        prompt_template = PromptTemplate(
+            input_variables=['prompt', 'columns', 'shape', 'missing'],
+            template="""You are a basketball data analyst who understands portuguese. You will answer based only on the data that is on Basketball Data is loaded as 'df' is already loaded as 'df'
+            column names: {columns}
+            df.shape: {shape}
+            missing values: {missing}
+            Please provide short executeable python code, I knows python, include correct column names.
+            query: {prompt}
+            Answer: 
+            """
+        )
+        
+        llm = ChatAnthropic(
+            api_key=anthropic_api_key,
+            model="claude-3-sonnet-20240229",
+            temperature=st.session_state["temperature"],
+            max_tokens_to_sample=4096
+        )
+        
+        about_chain = LLMChain(llm=llm, prompt=prompt_template, output_key="about")
+        chain = SequentialChain(
+            chains=[about_chain], 
+            input_variables=["prompt", "columns", "shape", "missing"],
+            output_variables=["about"]
+        )
+        
+        # Debug log
+        print("Gerando resposta para prompt:", prompt)
+        
+        response = chain.run({
+            'prompt': prompt, 
+            'columns': columns, 
+            'shape': shape, 
+            'missing': missing
+        })
+        
+        # Debug log
+        print("Resposta gerada:", response)
+        
         return response
+        
     except Exception as e:
-        st.error(f"Erro ao gerar código: {e}")
+        print(f"Erro detalhado na geração de código: {str(e)}")
+        st.error(f"Erro ao gerar código: {str(e)}")
         return None
 
 # Interface principal
@@ -147,9 +168,15 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
         with st.chat_message("assistant", avatar="https://raw.githubusercontent.com/aloainow/images/main/logo.png"):
             st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=True)
             try:
-                prompt_response = generate_code(prompt, missing, shape, columns)
+                # Debug log
+                print("Processando prompt:", prompt)
+                
+                prompt_response = generate_code(prompt, columns, missing, shape)
                 
                 if prompt_response:
+                    # Debug log
+                    print("Prompt response gerado:", prompt_response)
+                    
                     # Criar agente para análise
                     agent = create_pandas_dataframe_agent(
                         ChatAnthropic(
@@ -166,6 +193,9 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
                     # Executar análise
                     response = agent.run(prompt_response, callbacks=[st_cb])
                     
+                    # Debug log
+                    print("Resposta do agente:", response)
+                    
                     # Verificar se há gráfico para mostrar
                     fig = plt.gcf()
                     if fig.get_axes():
@@ -180,7 +210,8 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
                     st.markdown(response)
                     
             except Exception as e:
-                st.error("Problema na análise dos dados! Por favor, tente novamente com uma pergunta diferente.")
+                print(f"Erro detalhado: {str(e)}")
+                st.error(f"Problema na análise dos dados: {str(e)}")
                 st.stop()
     else:
         st.warning("Erro ao carregar os dados. Verifique se existem arquivos CSV na pasta 'files'.")
