@@ -187,7 +187,8 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
                         df,
                         agent_type=AgentType.OPENAI_FUNCTIONS,
                         handle_parsing_errors=True,
-                        number_of_head_rows=4
+                        number_of_head_rows=4,
+                        allow_dangerous_code=True  # Adicionando permissão para execução de código
                     )
                     
                     # Executar análise
