@@ -51,12 +51,13 @@ anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
 
 def load_csv_data():
     try:
-        # Caminho direto para o arquivo na pasta files
+        # Nome exato do arquivo como está na pasta files
         file_path = os.path.join('files', 'Jogadores Brasileiros FULL 23-24 Season - Página1-2.csv')
             
         if not os.path.exists(file_path):
             st.error(f"Erro: Arquivo não encontrado em {file_path}")
             print(f"Tentando acessar arquivo em: {file_path}")  # Para debugging
+            print("Conteúdo da pasta files:", os.listdir('files'))  # Listar arquivos para debug
             return None, None, None, None, None
             
         # Carrega o arquivo
