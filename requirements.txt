@@ -7,12 +7,12 @@ streamlit==1.31.1
 streamlit-chat==0.1.1
 
 # LangChain e relacionados
-langchain==0.1.9
+langchain==0.0.352
 langchain-experimental==0.0.52
-langchain-anthropic==0.1.1
+langchain-anthropic==0.0.16
 langchain-core==0.1.27
 anthropic==0.17.0
-langsmith==0.1.27
+langsmith==0.0.83
 
 # Utilidades e formatação
 typing_extensions==4.10.0
