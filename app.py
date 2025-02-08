@@ -101,7 +101,7 @@ Answer:
         # Cria o modelo usando ChatOpenAI
         llm = ChatOpenAI(
             api_key=openai_api_key,
-            model_name="gpt-4o"
+            model_name="gpt-4o",
             temperature=st.session_state["temperature"]
         )
         
