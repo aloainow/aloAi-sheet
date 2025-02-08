@@ -32,9 +32,8 @@ st.title("BasketIA 🏀")
 # Sidebar About
 about = st.sidebar.expander("🧠 About")
 about.write(
-    """Encontre e compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial.
-Faça análises de times e jogadores, identificando insights para o seu time.
-As possibilidades são infinitas."""
+    """Encontre e compare jogadores utilizando as estéticas combinadas para possíveis convocações.
+Você pode consultar jogadores por idade, país, liga, entre outros critérios, e também solicitar gráficos que mostrem a evolução de atributos ao longo das temporadas."""
 )
 
 # Configuração da temperatura no sidebar
@@ -51,8 +50,38 @@ with st.sidebar.expander("🛠️ Tools", expanded=False):
     )
     st.session_state["temperature"] = temperature
 
-# Configuração do modelo OpenAI (use sua chave do OpenAI)
+# Configuração do modelo OpenAI (utilize sua chave do OpenAI em st.secrets)
 openai_api_key = st.secrets["OPENAI_API_KEY"]
+
+# ─────────────────────────────────────────────
+# Definição do prompt para o agente
+# ─────────────────────────────────────────────
+prompt_template = PromptTemplate(
+    input_variables=['prompt', 'columns', 'shape', 'missing'],
+    template="""You are a basketball data analyst with expertise in Python, pandas, matplotlib, and seaborn. You have a DataFrame named "df" that contains basketball player data with the following columns:
+'Player Name', 'Team Name', 'League', 'Nationality', 'Country', 'Age', 'Height', 'Pos', 'GP', 'EFF', 'MPG', 'PPG', 'RPG', 'ORB', 'DRB', 'APG', 'BPG', 'SPG', 'PF', 'FTA', 'FTM', 'FT%', '2PA', '2PM', '2P%', '3PA', '3PM', '3P%', 'TO', and 'TYPE'.
+
+In addition, the DataFrame already includes columns for offensive and defensive metrics. Your task is to combine these metrics into a new column called "Combined Metric". Compute it as a simple average:
+    Combined Metric = (Offensive Metric + Defensive Metric) / 2
+
+Based solely on the data in "df" and given a user's query, generate a short, executable Python code snippet that performs the following tasks:
+
+1. Filter the DataFrame according to the query criteria (for example, age, country, league, etc.).
+2. Combine the existing metrics by creating a new column "Combined Metric" as described above.
+3. Sort the filtered results based on "Combined Metric" in descending order.
+4. Select the top players as specified in the query (the user may request 5 players or only 1 player).
+5. If the query requests a graphical visualization (for example, "show a line chart of the evolution of PPG over the seasons"), generate an appropriate plot using matplotlib or seaborn. The graph should display the evolution of the specified attribute over the seasons for the selected player(s).
+6. Return only the Python code enclosed in triple backticks (```), without any additional commentary or explanation.
+
+User Query: {prompt}
+
+Columns: {columns}
+DataFrame shape: {shape}
+Missing values: {missing}
+
+Answer:
+"""
+)
 
 # ─────────────────────────────────────────────
 # Função para carregar os dados CSV
@@ -86,22 +115,10 @@ def load_csv_data():
 # ─────────────────────────────────────────────
 def generate_code(prompt, columns, missing, shape):
     try:
-        prompt_template = PromptTemplate(
-            input_variables=['prompt', 'columns', 'shape', 'missing'],
-            template="""You are a basketball data analyst who understands portuguese. You will answer based only on the data that is loaded in the variable 'df'.
-Column names: {columns}
-DataFrame shape: {shape}
-Missing values: {missing}
-Please provide short, executable Python code. I know Python, so include correct column names.
-Query: {prompt}
-Answer: 
-"""
-        )
-        
-        # Cria o modelo usando ChatOpenAI
+        # Cria o modelo usando ChatOpenAI com o nome do modelo definido (ex: "gpt-4o" se for o nome desejado)
         llm = ChatOpenAI(
             api_key=openai_api_key,
-            model_name="gpt-4o",
+            model_name="gpt-4o",  # Substitua "gpt-4o" pelo nome do modelo desejado
             temperature=st.session_state["temperature"]
         )
         
@@ -130,9 +147,8 @@ Answer:
 if "messages" not in st.session_state or st.sidebar.button("Limpar histórico de conversa"):
     st.session_state["messages"] = [{
         "role": "assistant",
-        "content": """Olá, através de prompts, compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial.
-Faça análises de times e jogadores, identificando insights para o seu time.
-As possibilidades são infinitas."""
+        "content": """Olá, através de prompts, encontre e analise jogadores com base nas estéticas combinadas para possíveis convocações.
+Você pode solicitar filtros específicos (por exemplo, idade, país, liga) e também pedir para visualizar gráficos de evolução de atributos ao longo das temporadas."""
     }]
     st.session_state['history'] = []
 
@@ -154,7 +170,7 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
             try:
                 prompt_response = generate_code(prompt, columns, missing, shape)
                 if prompt_response:
-                    # Cria o agente usando o modelo ChatOpenAI
+                    # Cria o agente usando o modelo ChatOpenAI (aqui usamos "gpt-3.5-turbo" para a execução do agente; ajuste conforme necessário)
                     agent = create_pandas_dataframe_agent(
                         ChatOpenAI(
                             api_key=openai_api_key,
