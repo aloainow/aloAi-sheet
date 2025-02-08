@@ -1,33 +1,55 @@
-import pandas as pd
-import numpy as np
+import os
+import sys
+from io import BytesIO
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import streamlit as st
+from sklearn.linear_model import LinearRegression
+from streamlit_chat import message
+import statsmodels as sm
+
+# ─────────────────────────────────────────────
+# Importações do LangChain e Anthropic
+# ─────────────────────────────────────────────
 from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain.agents import AgentType
 from langchain.callbacks import StreamlitCallbackHandler
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain, SequentialChain
 from langchain.memory import ConversationBufferMemory
-import streamlit as st
-from streamlit_chat import message
-import statsmodels as sm
-import seaborn as sns
-import os
-import sys
-from io import BytesIO
-from sklearn.linear_model import LinearRegression
 
-# ─────────────────────────────────────────────
-# Monkey Patch para remover o argumento "proxies" e tratar o "api_key"
-# ─────────────────────────────────────────────
+# Importa a classe base do ChatAnthropic e o pacote anthropic
 from langchain_anthropic import ChatAnthropic as BaseChatAnthropic
 import anthropic
 
+# ─────────────────────────────────────────────
+# Monkey Patch global para corrigir o erro:
+# "Messages.create() got an unexpected keyword argument 'api_key'"
+# ─────────────────────────────────────────────
+# Salva a implementação original de Messages.create
+original_messages_create = anthropic.Messages.create
+
+def patched_messages_create(*args, **kwargs):
+    # Remove o parâmetro 'api_key' se estiver presente
+    if "api_key" in kwargs:
+        del kwargs["api_key"]
+    return original_messages_create(*args, **kwargs)
+
+anthropic.Messages.create = patched_messages_create
+
+# ─────────────────────────────────────────────
+# Subclasse de ChatAnthropic que remove o parâmetro 'proxies'
+# e não repassa 'api_key' via kwargs
+# ─────────────────────────────────────────────
 class ChatAnthropicNoProxies(BaseChatAnthropic):
     """
-    Subclasse de ChatAnthropic que ajusta a inicialização do client:
-    - Remove o argumento 'proxies'
-    - Extrai o 'api_key' e o passa como argumento posicional, evitando que
-      ele seja repassado para métodos internos (como Messages.create)
+    Essa subclasse ajusta a inicialização do client:
+      - Remove o argumento 'proxies'
+      - Remove o 'api_key' dos kwargs e passa-o como argumento posicional,
+        evitando que seja repassado para métodos internos (como Messages.create)
     """
     def _init_client(self):
         try:
@@ -41,12 +63,10 @@ class ChatAnthropicNoProxies(BaseChatAnthropic):
             }
         # Remove o parâmetro 'proxies', se existir
         client_kwargs.pop("proxies", None)
-        # Extrai o api_key e o remove dos kwargs
-        api_key = client_kwargs.pop("api_key", self.api_key)
-        # Chama o client passando somente o api_key como argumento posicional.
-        # Outros parâmetros já estão armazenados na instância do ChatAnthropic e
-        # serão usados conforme necessário.
-        return anthropic.Client(api_key)
+        # Remove 'api_key' dos kwargs para que não seja repassado adiante
+        client_kwargs.pop("api_key", None)
+        # Cria o client passando a chave como argumento posicional
+        return anthropic.Client(self.api_key, **client_kwargs)
 
 # ─────────────────────────────────────────────
 # Configuração da página e interface do Streamlit
@@ -133,7 +153,7 @@ def generate_code(prompt, columns, missing, shape):
             """
         )
         
-        # Utiliza a classe modificada para evitar o erro com 'proxies' e o repasse incorreto do api_key
+        # Utiliza a classe modificada para evitar os problemas com 'proxies' e 'api_key'
         llm = ChatAnthropicNoProxies(
             api_key=anthropic_api_key,
             model="claude-3-sonnet-20240229",
