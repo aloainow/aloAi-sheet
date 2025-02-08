@@ -1,5 +1,4 @@
 import os
-import sys
 from io import BytesIO
 
 import matplotlib.pyplot as plt
@@ -26,50 +25,37 @@ from langchain_anthropic import ChatAnthropic as BaseChatAnthropic
 import anthropic
 
 # ─────────────────────────────────────────────
-# Monkey Patch opcional para corrigir o erro:
-# "Messages.create() got an unexpected keyword argument 'api_key'"
-# Se o atributo 'Messages' existir, fazemos o patch; caso contrário, ignoramos.
-# ─────────────────────────────────────────────
-try:
-    original_messages_create = anthropic.Messages.create
-
-    def patched_messages_create(*args, **kwargs):
-        if "api_key" in kwargs:
-            del kwargs["api_key"]
-        return original_messages_create(*args, **kwargs)
-
-    anthropic.Messages.create = patched_messages_create
-    print("Patch aplicado em anthropic.Messages.create.")
-except AttributeError:
-    print("anthropic.Messages não encontrado; patch ignorado.")
-
-# ─────────────────────────────────────────────
-# Subclasse de ChatAnthropic que remove o parâmetro 'proxies'
-# e não repassa 'api_key' via kwargs
+# Subclasse de ChatAnthropic que evita passar 'proxies' e que também
+# "corrige" o problema do api_key no método messages.create.
 # ─────────────────────────────────────────────
 class ChatAnthropicNoProxies(BaseChatAnthropic):
     """
-    Essa subclasse ajusta a inicialização do client:
-      - Remove o argumento 'proxies'
-      - Remove 'api_key' dos kwargs e passa-o como argumento posicional,
-        evitando que seja repassado para métodos internos.
+    Esta subclasse constrói o client da Anthropic sem incluir o parâmetro
+    'proxies' e, logo após a criação, faz um patch no método messages.create
+    para remover 'api_key' dos argumentos.
     """
     def _init_client(self):
-        try:
-            client_kwargs = self._build_client_kwargs()
-        except AttributeError:
-            client_kwargs = {
-                "api_key": self.api_key,
-                "model": self.model,
-                "max_tokens_to_sample": getattr(self, "max_tokens_to_sample", None),
-                "temperature": self.temperature
-            }
-        # Remove o parâmetro 'proxies', se existir
-        client_kwargs.pop("proxies", None)
-        # Remove 'api_key' dos kwargs para que não seja repassado adiante
-        client_kwargs.pop("api_key", None)
-        # Cria o client passando a chave como argumento posicional
-        return anthropic.Client(self.api_key, **client_kwargs)
+        # Constrói manualmente os parâmetros que queremos passar para o client.
+        client_kwargs = {
+            "model": self.model,
+            "max_tokens_to_sample": getattr(self, "max_tokens_to_sample", None),
+            "temperature": self.temperature,
+        }
+        # Cria o client passando self.api_key como argumento posicional.
+        client = anthropic.Client(self.api_key, **client_kwargs)
+        
+        # Se o client tiver o atributo 'messages' com o método 'create', fazemos o patch:
+        if hasattr(client, "messages") and hasattr(client.messages, "create"):
+            original_create = client.messages.create
+
+            def patched_create(*args, **kwargs):
+                # Remove 'api_key' dos kwargs, se existir.
+                kwargs.pop("api_key", None)
+                return original_create(*args, **kwargs)
+
+            client.messages.create = patched_create
+        
+        return client
 
 # ─────────────────────────────────────────────
 # Configuração da página e interface do Streamlit
@@ -79,19 +65,17 @@ st.title("BasketIA 🏀")
 
 # Sidebar About
 about = st.sidebar.expander("🧠 About")
-sections = [r"""
-Encontre e compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial.
-Faça análises jogadores, recebendo insights. A database dessa versão possui todos os jogadores brasileiros que atuaram nas principais ligas da Europa, EUA (HS, Universitário e NBA), Brasil e principais ligas da AL.
+about.write(
+    """Encontre e compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial.
+Faça análises de times e jogadores, identificando insights para o seu time.
 As possibilidades são infinitas."""
-]
-for section in sections:
-    about.write(section)
+)
 
 # Configuração da temperatura no sidebar
 if "temperature" not in st.session_state:
     st.session_state["temperature"] = 0.5
 
-with st.sidebar.expander("🛠️Tools", expanded=False):
+with st.sidebar.expander("🛠️ Tools", expanded=False):
     temperature = st.slider(
         label="Temperature",
         min_value=0.0,
@@ -101,7 +85,7 @@ with st.sidebar.expander("🛠️Tools", expanded=False):
     )
     st.session_state["temperature"] = temperature
 
-# Configuração do modelo Claude (use sua chave do Anthropic)
+# Configuração do modelo Claude (utilize sua chave do Anthropic)
 anthropic_api_key = st.secrets["ANTHROPIC_API_KEY"]
 
 # ─────────────────────────────────────────────
@@ -115,16 +99,11 @@ def load_csv_data():
             st.error("Nenhum arquivo CSV encontrado na pasta 'files'")
             return None, None, None, None, None
         if len(arquivos_csv) > 1:
-            arquivo_selecionado = st.sidebar.selectbox(
-                "Selecione o arquivo para análise:",
-                arquivos_csv
-            )
+            arquivo_selecionado = st.sidebar.selectbox("Selecione o arquivo para análise:", arquivos_csv)
         else:
             arquivo_selecionado = arquivos_csv[0]
         file_path = os.path.join('files', arquivo_selecionado)
         df = pd.read_csv(file_path, encoding='utf-8')
-        print(f"Arquivo carregado: {arquivo_selecionado}")
-        print("Colunas:", df.columns.tolist())
         st.sidebar.write("DataFrame carregado com sucesso")
         st.sidebar.write("Primeiras linhas:", df.head())
         st.sidebar.markdown("### Informações do Dataset")
@@ -134,9 +113,6 @@ def load_csv_data():
         return df, df.head(), df.isnull().sum(), df.shape, df.columns
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {str(e)}")
-        print(f"Erro detalhado: {str(e)}")
-        print("Diretório atual:", os.getcwd())
-        print("Conteúdo do diretório files:", os.listdir('files'))
         return None, None, None, None, None
 
 # ─────────────────────────────────────────────
@@ -146,17 +122,17 @@ def generate_code(prompt, columns, missing, shape):
     try:
         prompt_template = PromptTemplate(
             input_variables=['prompt', 'columns', 'shape', 'missing'],
-            template="""You are a basketball data analyst who understands portuguese. You will answer based only on the data that is on Basketball Data is loaded as 'df' is already loaded as 'df'
-            column names: {columns}
-            df.shape: {shape}
-            missing values: {missing}
-            Please provide short executeable python code, I knows python, include correct column names.
-            query: {prompt}
-            Answer: 
-            """
+            template="""You are a basketball data analyst who understands portuguese. You will answer based only on the data that is on Basketball Data is loaded as 'df'
+column names: {columns}
+df.shape: {shape}
+missing values: {missing}
+Please provide short executeable python code, I know python, include correct column names.
+query: {prompt}
+Answer: 
+"""
         )
         
-        # Utiliza a classe modificada para evitar problemas com 'proxies' e 'api_key'
+        # Usa a classe modificada que corrige os problemas com proxies e api_key.
         llm = ChatAnthropicNoProxies(
             api_key=anthropic_api_key,
             model="claude-3-sonnet-20240229",
@@ -166,23 +142,20 @@ def generate_code(prompt, columns, missing, shape):
         
         about_chain = LLMChain(llm=llm, prompt=prompt_template, output_key="about")
         chain = SequentialChain(
-            chains=[about_chain], 
+            chains=[about_chain],
             input_variables=["prompt", "columns", "shape", "missing"],
             output_variables=["about"]
         )
         
         response = chain.run({
-            'prompt': prompt, 
-            'columns': columns, 
-            'shape': shape, 
+            'prompt': prompt,
+            'columns': columns,
+            'shape': shape,
             'missing': missing
         })
         
-        print("Código gerado:", response)
         return response
-        
     except Exception as e:
-        print(f"Erro detalhado na geração de código: {str(e)}")
         st.error(f"Erro ao gerar código: {str(e)}")
         return None
 
@@ -190,9 +163,12 @@ def generate_code(prompt, columns, missing, shape):
 # Interface principal de chat
 # ─────────────────────────────────────────────
 if "messages" not in st.session_state or st.sidebar.button("Limpar histórico de conversa"):
-    st.session_state["messages"] = [{"role": "assistant", "content": r"""Olá, através de prompts, compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial.
+    st.session_state["messages"] = [{
+        "role": "assistant",
+        "content": """Olá, através de prompts, compare jogadores, através da combinação entre estatísticas e todo o poder da Inteligência artificial.
 Faça análises de times e jogadores, identificando insights para o seu time.
-As possibilidades são infinitas."""}]
+As possibilidades são infinitas."""
+    }]
     st.session_state['history'] = []
 
 df, data, missing, shape, columns = load_csv_data()
@@ -211,11 +187,9 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
         with st.chat_message("assistant", avatar="https://raw.githubusercontent.com/aloainow/images/main/logo.png"):
             st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=True)
             try:
-                print("Processando prompt:", prompt)
                 prompt_response = generate_code(prompt, columns, missing, shape)
                 if prompt_response:
-                    print("Prompt response gerado:", prompt_response)
-                    # Utiliza a classe modificada na criação do agente
+                    # Cria o agente usando a classe modificada
                     agent = create_pandas_dataframe_agent(
                         ChatAnthropicNoProxies(
                             api_key=anthropic_api_key,
@@ -231,8 +205,7 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
                     
                     response = agent.run(prompt_response, callbacks=[st_cb])
                     
-                    print("Resposta do agente:", response)
-                    
+                    # Se houver gráfico, exibe-o
                     fig = plt.gcf()
                     if fig.get_axes():
                         fig.set_size_inches(12, 6)
@@ -246,7 +219,6 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
                     st.markdown(response)
                     
             except Exception as e:
-                print(f"Erro detalhado: {str(e)}")
                 st.error(f"Problema na análise dos dados: {str(e)}")
                 st.stop()
     else:
