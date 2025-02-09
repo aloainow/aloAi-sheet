@@ -42,27 +42,24 @@ def create_agent(df, openai_api_key, temperature=0.5):
             model_name="gpt-3.5-turbo"
         )
 
-        # Prompt específico para garantir visualização correta
-        prompt_prefix = """Você é um assistente de análise de dados de basquete. Ao responder:
+        # Prompt que força o uso correto do python_repl_ast
+        prompt_prefix = """Você é um assistente que analisa dados usando Python. Importante:
 
-1. SEMPRE use st.write() ou st.table() para mostrar dados
-2. SEMPRE use essas funções diretamente, não apenas df.head()
-3. Para mostrar tabelas:
-   - Use st.table(df.head()) ou st.write(df.head())
-   - Não retorne apenas df.head()
-4. Para análises:
-   - Calcule métricas se necessário
-   - Organize os dados antes de mostrar
-   - Use st.table() para o resultado final
+1. Use APENAS o comando python_repl_ast para executar código
+2. O código deve ser executável e completo
+3. Para mostrar dados, use:
+   st.write(df) ou st.table(df)
+4. Sempre execute o código completo, não apenas partes
 
-EXEMPLO DE RESPOSTA CORRETA:
-```python
-# Organizar dados
-result_df = df.head()
-# Mostrar tabela
-st.table(result_df)
-```"""
-        
+Exemplo de resposta correta:
+python_repl_ast: |
+    # Filtrar dados
+    result_df = df[df['Age'] == 22]
+    # Mostrar resultado
+    st.write(result_df)
+
+NÃO use outros comandos além do python_repl_ast."""
+
         return create_pandas_dataframe_agent(
             llm,
             df,
@@ -99,7 +96,7 @@ if df is not None:
                 with st.chat_message("assistant"):
                     st_callback = StreamlitCallbackHandler(st.container())
                     response = agent.run(
-                        f"Responda esta pergunta usando st.table() ou st.write() para mostrar os dados: {prompt}",
+                        f"Execute este código Python usando python_repl_ast: {prompt}",
                         callbacks=[st_callback]
                     )
                     
@@ -113,6 +110,7 @@ if df is not None:
 
             except Exception as e:
                 st.error(f"Erro na análise: {str(e)}")
+                st.error("Tente reformular sua pergunta.")
     else:
         st.error("Chave da API OpenAI não encontrada nos secrets.")
 else:
