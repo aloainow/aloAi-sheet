@@ -7,7 +7,6 @@ import seaborn as sns
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from langchain.chat_models import ChatOpenAI
 from langchain.callbacks import StreamlitCallbackHandler
-from langchain.agents import AgentExecutor
 
 # Configuração da página
 st.set_page_config(page_title="BasketIA 🏀", page_icon="🏀", layout="wide")
@@ -43,30 +42,9 @@ def create_agent(df, openai_api_key, temperature=0.5):
             model_name="gpt-3.5-turbo"
         )
 
-        # Prompt simplificado
-        prompt_prefix = """Você é um assistente que executa análises de dados. SEMPRE responda usando apenas código Python executável.
-
-Para cada pergunta:
-1. Use Python para analisar os dados
-2. Mostre resultados com st.write()
-3. Formate os números
-4. Não adicione explicações, apenas o código
-
-Exemplo:
-Action: python_repl_ast
-Action Input: df_filtered = df[df['Age'] == 22]
-st.write(df_filtered)"""
-
-        agent = create_pandas_dataframe_agent(
+        return create_pandas_dataframe_agent(
             llm,
             df,
-            prefix=prompt_prefix,
-            handle_parsing_errors=True
-        )
-        
-        return AgentExecutor.from_agent_and_tools(
-            agent=agent,
-            tools=agent.tools,
             handle_parsing_errors=True,
             verbose=True
         )
@@ -99,7 +77,10 @@ if df is not None:
             try:
                 with st.chat_message("assistant"):
                     st_callback = StreamlitCallbackHandler(st.container())
-                    response = agent.run(prompt, callbacks=[st_callback])
+                    response = agent.run(
+                        f"Execute este código Python: {prompt}. Use st.write() para mostrar os resultados.",
+                        callbacks=[st_callback]
+                    )
                     
                     if plt.get_fignums():
                         for fig_num in plt.get_fignums():
