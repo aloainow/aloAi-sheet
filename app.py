@@ -7,7 +7,6 @@ import seaborn as sns
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from langchain.chat_models import ChatOpenAI
 from langchain.callbacks import StreamlitCallbackHandler
-from langchain.agents.agent import AgentExecutor
 
 # Configuração da página
 st.set_page_config(page_title="BasketIA 🏀", page_icon="🏀", layout="wide")
@@ -59,16 +58,6 @@ with st.sidebar:
         - **3PM**: Arremessos de 3 pontos convertidos
         - **3P%**: Percentual de acerto em arremessos de 3 pontos
         """)
-    
-    # Expandable para exemplos de perguntas
-    with st.expander("❓ Exemplos de Perguntas"):
-        st.markdown("""
-        1. "Mostre os top 10 jogadores de 24 anos"
-        2. "Quais são os jogadores com maior PPG?"
-        3. "Liste os jogadores com melhor aproveitamento de 3 pontos"
-        4. "Quem são os líderes em assistências?"
-        5. "Mostre os jogadores mais eficientes (EFF) da liga"
-        """)
 
 def load_data():
     """Carrega dados do CSV"""
@@ -82,7 +71,7 @@ def load_data():
         df = pd.read_csv(os.path.join('files', selected_file))
         
         # Converter colunas numéricas
-        numeric_columns = ['Age', 'PPG', 'APG', 'FG%', '3P%', 'EFF', 'MPG', 'RPG', 'SPG', 'BPG']
+        numeric_columns = ['Age', 'PPG', 'APG', '2P%', '3P%', 'EFF', 'MPG', 'RPG', 'SPG', 'BPG']
         for col in numeric_columns:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -94,19 +83,20 @@ def load_data():
 
 def show_column_info(df):
     """Mostra informações sobre as colunas disponíveis"""
-    col1, col2 = st.columns(2)
+    st.write("### Colunas Disponíveis")
     
-    with col1:
-        st.write("### Estatísticas Disponíveis")
-        stats_cols = [col for col in df.columns if any(x in col for x in ['PPG', 'APG', 'RPG', 'FG%', '3P%', 'EFF'])]
-        for col in stats_cols:
-            st.write(f"- {col}")
+    # Agrupar colunas por categoria
+    categories = {
+        "Informações Básicas": ["Player Name", "Team Name", "League", "Nationality", "Country", "Age", "Height", "Pos", "TYPE"],
+        "Estatísticas por Jogo": ["PPG", "APG", "RPG", "BPG", "SPG", "MPG"],
+        "Percentuais": ["2P%", "3P%", "FT%"],
+        "Outras Estatísticas": ["EFF", "ORB", "DRB", "PF", "TO"]
+    }
     
-    with col2:
-        st.write("### Informações de Jogador")
-        info_cols = [col for col in df.columns if col not in stats_cols]
-        for col in info_cols[:10]:  # Limitando para não ficar muito grande
-            st.write(f"- {col}")
+    for category, cols in categories.items():
+        st.write(f"**{category}:**")
+        available_cols = [col for col in cols if col in df.columns]
+        st.write(", ".join(available_cols))
 
 def process_stats_query(df, age=None, stat_column=None):
     """Processa consulta de estatísticas"""
@@ -126,11 +116,11 @@ def process_stats_query(df, age=None, stat_column=None):
             df['Metrica_Ofensiva'] = (
                 df['PPG'] * 0.4 + 
                 df['APG'] * 0.3 + 
-                df['FG%'] * 0.15 + 
+                df['2P%'] * 0.15 + 
                 df['3P%'] * 0.15
             )
             columns = ['Player Name', 'Team Name', 'League', 'Age', 
-                      'PPG', 'APG', 'FG%', '3P%', 'Metrica_Ofensiva']
+                      'PPG', 'APG', '2P%', '3P%', 'Metrica_Ofensiva']
             result = df.nlargest(10, 'Metrica_Ofensiva')[columns].round(1)
         
         return result
@@ -151,8 +141,7 @@ def create_agent(df):
             llm,
             df,
             verbose=True,
-            handle_parsing_errors=True,
-            max_iterations=2
+            handle_parsing_errors=True
         )
     except Exception as e:
         st.error(f"Erro ao criar agente: {str(e)}")
@@ -165,117 +154,80 @@ if df is not None:
     # Criar agente
     agent = create_agent(df)
     
-    # Mostrar ajuda inicial
-    if "show_help" not in st.session_state:
-        st.session_state.show_help = True
-        
-    if st.session_state.show_help:
-        with st.expander("ℹ️ Como usar o BasketIA", expanded=True):
-            st.write("Bem-vindo ao BasketIA! Aqui você pode:")
-            st.write("1. Fazer perguntas sobre estatísticas dos jogadores")
-            st.write("2. Filtrar por idade ou métricas específicas")
-            st.write("3. Ver rankings e comparações")
-            show_column_info(df)
-            if st.button("Entendi! Não mostrar novamente"):
-                st.session_state.show_help = False
-                st.experimental_rerun()
+    # Interface principal
+    st.write("### 🔍 Faça sua consulta")
     
-    # Interface do chat
-    if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {"role": "assistant", "content": "Olá! Como posso ajudar com a análise dos dados? Você pode perguntar sobre estatísticas dos jogadores por idade, rankings e mais. Use a barra lateral para ver as estatísticas disponíveis e exemplos de perguntas!"}
-        ]
-
-    # Mostrar histórico de mensagens
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    # Input do usuário com sugestões
-    # Criar lista de sugestões baseada nas colunas
-    suggestions = [
-        "Quais são os jogadores com mais pontos por jogo (PPG)?",
-        "Mostre os líderes em assistências (APG)",
-        "Quem tem o melhor aproveitamento nos arremessos de 3 pontos (3P%)?",
-        "Liste os jogadores com maior eficiência (EFF)",
-        "Quais jogadores têm mais roubos de bola (SPG)?",
-        "Mostre os melhores em bloqueios (BPG)",
-        "Quem tem o melhor aproveitamento em lances livres (FT%)?",
-        "Mostre os jogadores que mais jogam minutos por jogo (MPG)",
-        "Quais são os líderes em rebotes (RPG)?",
-        "Liste os jogadores com mais rebotes ofensivos (ORB)",
-        "Mostre os top 10 jogadores de uma idade específica",
-        "Quem são os melhores jogadores por posição (Pos)?",
-        "Liste os jogadores por nacionalidade"
-    ]
-
+    # Mostrar exemplos de perguntas
+    with st.expander("Ver exemplos de perguntas"):
+        st.markdown("""
+        - "Quais são os jogadores com mais pontos por jogo (PPG)?"
+        - "Mostre os líderes em assistências (APG)"
+        - "Quem tem o melhor aproveitamento nos arremessos de 3 pontos (3P%)?"
+        - "Liste os jogadores com maior eficiência (EFF)"
+        - "Mostre os top 10 jogadores de 24 anos"
+        """)
+    
     # Input do usuário
-    prompt = st.chat_input(
-        "Faça uma pergunta sobre os dados...",
-        help="Digite sua pergunta ou use as sugestões da barra lateral"
+    user_input = st.text_input(
+        "Digite sua pergunta...",
+        help="Use as sugestões acima como exemplos"
     )
     
-    if prompt:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # Processar consulta quando o usuário pressionar Enter
+    if user_input:
+        try:
+            # Verificar palavras-chave nas estatísticas
+            stat_keywords = {
+                'PPG': ['ppg', 'pontos por jogo', 'pontos'],
+                'APG': ['apg', 'assistências', 'assistencias'],
+                'RPG': ['rpg', 'rebotes'],
+                '2P%': ['2p%', 'field goal', 'arremessos de 2'],
+                '3P%': ['3p%', 'three point', 'arremessos de 3'],
+                'EFF': ['eff', 'eficiência', 'eficiencia']
+            }
+            
+            stat_column = None
+            idade = None
+            prompt_lower = user_input.lower()
 
-        # Processar resposta
-        with st.chat_message("assistant"):
-            try:
-                # Verificar por palavras-chave nas estatísticas
-                stat_keywords = {
-                    'PPG': ['ppg', 'pontos por jogo', 'pontos'],
-                    'APG': ['apg', 'assistências', 'assistencias'],
-                    'RPG': ['rpg', 'rebotes'],
-                    '2P%': ['2p%', 'field goal', 'arremessos de 2'],
-                    '3P%': ['3p%', 'three point', 'arremessos de 3'],
-                    'EFF': ['eff', 'eficiência', 'eficiencia']
-                }
-                
-                stat_column = None
-                idade = None
-                prompt_lower = prompt.lower()
+            # Verificar estatística específica
+            for col, keywords in stat_keywords.items():
+                if any(keyword in prompt_lower for keyword in keywords):
+                    stat_column = col
+                    break
 
-                # Verificar estatística específica
-                for col, keywords in stat_keywords.items():
-                    if any(keyword in prompt_lower for keyword in keywords):
-                        stat_column = col
-                        break
+            # Verificar idade
+            if "anos" in prompt_lower:
+                try:
+                    idade = int(''.join(filter(str.isdigit, user_input)))
+                except ValueError:
+                    pass
 
-                # Verificar idade
-                if "anos" in prompt_lower:
-                    try:
-                        idade = int(''.join(filter(str.isdigit, prompt)))
-                    except ValueError:
-                        pass
-
-                # Processar a consulta
-                result = process_stats_query(df, age=idade, stat_column=stat_column)
-                
-                if result is not None and not result.empty:
-                    message = ""
-                    if idade:
-                        message = f"Aqui estão os top 10 jogadores com {idade} anos:"
-                    elif stat_column:
-                        message = f"Aqui estão os top 10 jogadores por {stat_column}:"
-                    else:
-                        message = "Aqui estão os resultados:"
-                    
-                    st.write(message)
-                    st.table(result)
+            # Processar a consulta
+            result = process_stats_query(df, age=idade, stat_column=stat_column)
+            
+            if result is not None and not result.empty:
+                message = ""
+                if idade:
+                    message = f"📊 Top 10 jogadores com {idade} anos:"
+                elif stat_column:
+                    message = f"📊 Top 10 jogadores por {stat_column}:"
                 else:
-                    st.write("Não encontrei resultados para sua consulta. Tente reformular a pergunta.")
-                    st.write("Sugestões de perguntas:")
-                    for i, sugestao in enumerate(suggestions[:5], 1):
-                        st.write(f"{i}. {sugestao}")
+                    message = "📊 Resultados da consulta:"
+                
+                st.write(message)
+                st.table(result)
+            else:
+                st.warning("Não encontrei resultados para sua consulta. Tente reformular a pergunta.")
+                st.write("Sugestões:")
+                st.write("1. Use os nomes exatos das estatísticas (PPG, APG, etc.)")
+                st.write("2. Especifique a idade se quiser filtrar por idade")
+                st.write("3. Consulte as estatísticas disponíveis na barra lateral")
 
-            except Exception as e:
-                st.error("Ocorreu um erro ao processar sua pergunta.")
-                st.write("Tente usar uma das sugestões abaixo ou reformular sua pergunta:")
-                for i, sugestao in enumerate(suggestions[:5], 1):
-                    st.write(f"{i}. {sugestao}")
-                show_column_info(df)
+        except Exception as e:
+            st.error("Ocorreu um erro ao processar sua pergunta.")
+            st.write("Dicas para melhorar sua consulta:")
+            show_column_info(df)
 else:
     st.error("Por favor, coloque arquivos CSV na pasta 'files'.")
 
@@ -301,17 +253,5 @@ st.markdown("""
     }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    
-    /* Estilo para as sugestões */
-    .suggestion-box {
-        padding: 0.5rem;
-        margin: 0.5rem 0;
-        border-radius: 0.3rem;
-        background-color: #f0f2f6;
-        cursor: pointer;
-    }
-    .suggestion-box:hover {
-        background-color: #e0e2e6;
-    }
 </style>
 """, unsafe_allow_html=True)
