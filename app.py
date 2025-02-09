@@ -7,15 +7,49 @@ import seaborn as sns
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from langchain.chat_models import ChatOpenAI
 from langchain.callbacks import StreamlitCallbackHandler
+from langchain.agents.agent import AgentExecutor
 
 # Configuração da página
 st.set_page_config(page_title="BasketIA 🏀", page_icon="🏀", layout="wide")
 st.title("BasketIA 🏀")
 
-# Barra lateral
+# Barra lateral com informações das colunas
 with st.sidebar:
-    st.header("Configurações")
+    st.header("Configurações e Ajuda 📊")
     temperature = st.slider("Temperatura", 0.0, 1.0, 0.5, 0.1)
+    
+    # Expandable para mostrar estatísticas disponíveis
+    with st.expander("📈 Estatísticas Disponíveis"):
+        st.markdown("""
+        ### Estatísticas Básicas
+        - **PPG**: Pontos por jogo
+        - **APG**: Assistências por jogo
+        - **RPG**: Rebotes por jogo
+        - **MPG**: Minutos por jogo
+        
+        ### Percentuais
+        - **FG%**: % Arremessos de 2 pontos
+        - **3P%**: % Arremessos de 3 pontos
+        - **FT%**: % Lances livres
+        
+        ### Informações do Jogador
+        - **Player Name**: Nome do jogador
+        - **Team Name**: Nome do time
+        - **League**: Liga
+        - **Age**: Idade
+        - **Height**: Altura
+        - **Pos**: Posição
+        """)
+    
+    # Expandable para exemplos de perguntas
+    with st.expander("❓ Exemplos de Perguntas"):
+        st.markdown("""
+        1. "Mostre os top 10 jogadores de 24 anos"
+        2. "Quais são os jogadores com maior PPG?"
+        3. "Liste os jogadores com melhor aproveitamento de 3 pontos"
+        4. "Quem são os líderes em assistências?"
+        5. "Mostre os jogadores mais eficientes (EFF) da liga"
+        """)
 
 def load_data():
     """Carrega dados do CSV"""
@@ -28,73 +62,78 @@ def load_data():
         selected_file = files[0]
         df = pd.read_csv(os.path.join('files', selected_file))
         
-        # Verificar e padronizar nomes das colunas
-        column_mapping = {
-            '2P%': 'FG%',  # Padronizar nome da coluna
-            'Field Goal %': 'FG%',
-            'Field Goal Percentage': 'FG%'
-        }
-        df = df.rename(columns=column_mapping)
+        # Converter colunas numéricas
+        numeric_columns = ['Age', 'PPG', 'APG', 'FG%', '3P%', 'EFF', 'MPG', 'RPG', 'SPG', 'BPG']
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
         
         return df
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {str(e)}")
         return None
 
+def show_column_info(df):
+    """Mostra informações sobre as colunas disponíveis"""
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("### Estatísticas Disponíveis")
+        stats_cols = [col for col in df.columns if any(x in col for x in ['PPG', 'APG', 'RPG', 'FG%', '3P%', 'EFF'])]
+        for col in stats_cols:
+            st.write(f"- {col}")
+    
+    with col2:
+        st.write("### Informações de Jogador")
+        info_cols = [col for col in df.columns if col not in stats_cols]
+        for col in info_cols[:10]:  # Limitando para não ficar muito grande
+            st.write(f"- {col}")
+
+def process_stats_query(df, age=None, stat_column=None):
+    """Processa consulta de estatísticas"""
+    try:
+        # Filtrar por idade se especificado
+        if age is not None:
+            df = df[df['Age'] == age].copy()
+        else:
+            df = df.copy()
+
+        # Se uma estatística específica foi solicitada
+        if stat_column and stat_column in df.columns:
+            columns = ['Player Name', 'Team Name', 'League', 'Age', stat_column]
+            result = df.nlargest(10, stat_column)[columns].round(1)
+        else:
+            # Calcular métrica ofensiva
+            df['Metrica_Ofensiva'] = (
+                df['PPG'] * 0.4 + 
+                df['APG'] * 0.3 + 
+                df['FG%'] * 0.15 + 
+                df['3P%'] * 0.15
+            )
+            columns = ['Player Name', 'Team Name', 'League', 'Age', 
+                      'PPG', 'APG', 'FG%', '3P%', 'Metrica_Ofensiva']
+            result = df.nlargest(10, 'Metrica_Ofensiva')[columns].round(1)
+        
+        return result
+    except Exception as e:
+        st.error(f"Erro ao processar estatísticas: {str(e)}")
+        return None
+
 def create_agent(df):
     """Cria o agente do LangChain"""
     try:
         llm = ChatOpenAI(
-            temperature=temperature,  # Usar temperatura da sidebar
+            temperature=temperature,
             api_key=st.secrets["OPENAI_API_KEY"],
             model_name="gpt-3.5-turbo"
         )
 
-        # Prompt personalizado mais robusto
-        prefix = """Você é um assistente especializado em análise de estatísticas de basquete. 
-        
-        Regras importantes:
-        1. Sempre verifique os nomes das colunas disponíveis antes de usar
-        2. Use df.columns para listar colunas disponíveis
-        3. Para cálculos ofensivos, use:
-           - PPG (Pontos por jogo)
-           - APG (Assistências por jogo)
-           - FG% (Percentual de arremessos de 2 pontos)
-           - 3P% (Percentual de arremessos de 3 pontos)
-        4. Para filtrar por idade, use a coluna 'Age'
-        5. Sempre use st.table() para mostrar resultados
-        6. Trate erros de forma adequada
-        7. Arredonde números para uma casa decimal
-        8. Para mostrar jogadores específicos, use:
-           filtered_df = df[df['Age'] == idade_desejada]
-        
-        Exemplo de código base:
-        ```python
-        # Verificar colunas
-        print(df.columns)
-        
-        # Calcular métrica
-        df['Metrica_Ofensiva'] = (
-            df['PPG'] * 0.4 + 
-            df['APG'] * 0.3 + 
-            df['FG%'] * 0.3
-        )
-        
-        # Selecionar e mostrar top 10
-        result = df.nlargest(10, 'Metrica_Ofensiva')[
-            ['Player Name', 'Team Name', 'League', 'PPG', 'APG', 'FG%', 'Metrica_Ofensiva']
-        ].round(1)
-        
-        st.table(result)
-        ```
-        """
-
         return create_pandas_dataframe_agent(
             llm,
             df,
-            prefix=prefix,
             verbose=True,
-            handle_parsing_errors=True  # Adicionar tratamento de erros
+            handle_parsing_errors=True,
+            max_iterations=2
         )
     except Exception as e:
         st.error(f"Erro ao criar agente: {str(e)}")
@@ -107,10 +146,25 @@ if df is not None:
     # Criar agente
     agent = create_agent(df)
     
+    # Mostrar ajuda inicial
+    if "show_help" not in st.session_state:
+        st.session_state.show_help = True
+        
+    if st.session_state.show_help:
+        with st.expander("ℹ️ Como usar o BasketIA", expanded=True):
+            st.write("Bem-vindo ao BasketIA! Aqui você pode:")
+            st.write("1. Fazer perguntas sobre estatísticas dos jogadores")
+            st.write("2. Filtrar por idade ou métricas específicas")
+            st.write("3. Ver rankings e comparações")
+            show_column_info(df)
+            if st.button("Entendi! Não mostrar novamente"):
+                st.session_state.show_help = False
+                st.experimental_rerun()
+    
     # Interface do chat
     if "messages" not in st.session_state:
         st.session_state.messages = [
-            {"role": "assistant", "content": "Olá! Como posso ajudar com a análise dos dados? Você pode perguntar sobre estatísticas ofensivas, rankings de jogadores e mais."}
+            {"role": "assistant", "content": "Olá! Como posso ajudar com a análise dos dados? Você pode perguntar sobre estatísticas dos jogadores por idade, rankings e mais. Use a barra lateral para ver as estatísticas disponíveis e exemplos de perguntas!"}
         ]
 
     # Mostrar histórico de mensagens
@@ -118,8 +172,23 @@ if df is not None:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Input do usuário com sugestões
+    # Criar lista de sugestões baseada nas colunas
+    suggestions = [
+        f"Mostre os jogadores com maior {col}" for col in df.columns 
+        if col in ['PPG', 'APG', 'RPG', 'FG%', '3P%', 'EFF']
+    ]
+    suggestions.extend([
+        "Mostre os top 10 jogadores de 24 anos",
+        "Quais são os jogadores mais eficientes?",
+        "Liste os melhores jogadores com suas estatísticas"
+    ])
+
     # Input do usuário
-    if prompt := st.chat_input("Faça uma pergunta sobre os dados..."):
+    if prompt := st.chat_input(
+        "Faça uma pergunta sobre os dados...",
+        help="Digite sua pergunta ou use as sugestões da barra lateral"
+    ):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -127,51 +196,46 @@ if df is not None:
         # Processar resposta
         with st.chat_message("assistant"):
             try:
-                # Adicionar verificação de colunas antes da execução
-                if "top" in prompt.lower() and ("ofensiv" in prompt.lower() or "estatistica" in prompt.lower()):
-                    # Verificar colunas necessárias
-                    required_columns = ['PPG', 'APG', 'FG%']
-                    missing_columns = [col for col in required_columns if col not in df.columns]
-                    
-                    if missing_columns:
-                        st.error(f"Colunas necessárias não encontradas: {', '.join(missing_columns)}")
-                        st.write("Colunas disponíveis:", ", ".join(df.columns))
-                    else:
-                        response = agent.run("""
-                        # Filtrar por idade se necessário
-                        if 'idade' in prompt.lower():
-                            idade = int(''.join(filter(str.isdigit, prompt)))
-                            filtered_df = df[df['Age'] == idade]
-                        else:
-                            filtered_df = df.copy()
-                            
-                        # Calcular métrica ofensiva (adaptada para seu dataset)
-                        filtered_df['Metrica_Ofensiva'] = (
-                            filtered_df['PPG'] * 0.4 + 
-                            filtered_df['APG'] * 0.3 + 
-                            filtered_df['FG%'] * 0.15 + 
-                            filtered_df['3P%'] * 0.15
-                        )
-                        
-                        # Selecionar top 10
-                        result = filtered_df.nlargest(10, 'Metrica_Ofensiva')[
-                            ['Player Name', 'Team Name', 'League', 'Age', 'PPG', 'APG', 'FG%', '3P%', 'Metrica_Ofensiva']
-                        ].round(1)
-                        
-                        # Exibir resultados
-                        st.table(result)
-                        """)
-                else:
-                    response = agent.run(prompt)
+                # Verificar se é uma consulta de estatística específica
+                stat_keywords = {
+                    'PPG': ['ppg', 'pontos por jogo', 'pontos'],
+                    'APG': ['apg', 'assistências', 'assistencias'],
+                    'RPG': ['rpg', 'rebotes'],
+                    'FG%': ['fg%', 'field goal', 'arremessos de 2'],
+                    '3P%': ['3p%', 'three point', 'arremessos de 3'],
+                    'EFF': ['eff', 'eficiência', 'eficiencia']
+                }
                 
-                if response:
-                    st.session_state.messages.append({"role": "assistant", "content": response})
-                    if isinstance(response, str):
+                stat_column = None
+                for col, keywords in stat_keywords.items():
+                    if any(keyword in prompt.lower() for keyword in keywords):
+                        stat_column = col
+                        break
+
+                # Verificar se é uma consulta de idade
+                idade = None
+                if "anos" in prompt.lower():
+                    idade = int(''.join(filter(str.isdigit, prompt)))
+
+                # Processar a consulta
+                result = process_stats_query(df, age=idade, stat_column=stat_column)
+                if result is not None and not result.empty:
+                    if idade:
+                        st.write(f"Aqui estão os top 10 jogadores com {idade} anos:")
+                    else:
+                        st.write("Aqui estão os resultados:")
+                    st.table(result)
+                else:
+                    if idade:
+                        st.write(f"Não encontrei jogadores com {idade} anos.")
+                    else:
+                        response = agent.run(prompt)
                         st.markdown(response)
+
             except Exception as e:
-                st.error(f"Erro na análise: {str(e)}")
-                st.write("Dica: Tente ser mais específico na sua pergunta ou verifique se as colunas necessárias estão disponíveis.")
-                st.write("Colunas disponíveis:", ", ".join(df.columns))
+                st.error("Ocorreu um erro ao processar sua pergunta.")
+                st.write("Tente usar uma das sugestões da barra lateral ou reformular sua pergunta.")
+                show_column_info(df)
 else:
     st.error("Por favor, coloque arquivos CSV na pasta 'files'.")
 
@@ -197,5 +261,17 @@ st.markdown("""
     }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    
+    /* Estilo para as sugestões */
+    .suggestion-box {
+        padding: 0.5rem;
+        margin: 0.5rem 0;
+        border-radius: 0.3rem;
+        background-color: #f0f2f6;
+        cursor: pointer;
+    }
+    .suggestion-box:hover {
+        background-color: #e0e2e6;
+    }
 </style>
 """, unsafe_allow_html=True)
