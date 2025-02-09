@@ -210,10 +210,12 @@ if df is not None:
     ]
 
     # Input do usuário
-    if prompt := st.chat_input(
+    prompt = st.chat_input(
         "Faça uma pergunta sobre os dados...",
         help="Digite sua pergunta ou use as sugestões da barra lateral"
-    ):
+    )
+    
+    if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -221,45 +223,58 @@ if df is not None:
         # Processar resposta
         with st.chat_message("assistant"):
             try:
-                # Verificar se é uma consulta de estatística específica
+                # Verificar por palavras-chave nas estatísticas
                 stat_keywords = {
                     'PPG': ['ppg', 'pontos por jogo', 'pontos'],
                     'APG': ['apg', 'assistências', 'assistencias'],
                     'RPG': ['rpg', 'rebotes'],
-                    'FG%': ['fg%', 'field goal', 'arremessos de 2'],
+                    '2P%': ['2p%', 'field goal', 'arremessos de 2'],
                     '3P%': ['3p%', 'three point', 'arremessos de 3'],
                     'EFF': ['eff', 'eficiência', 'eficiencia']
                 }
                 
                 stat_column = None
+                idade = None
+                prompt_lower = prompt.lower()
+
+                # Verificar estatística específica
                 for col, keywords in stat_keywords.items():
-                    if any(keyword in prompt.lower() for keyword in keywords):
+                    if any(keyword in prompt_lower for keyword in keywords):
                         stat_column = col
                         break
 
-                # Verificar se é uma consulta de idade
-                idade = None
-                if "anos" in prompt.lower():
-                    idade = int(''.join(filter(str.isdigit, prompt)))
+                # Verificar idade
+                if "anos" in prompt_lower:
+                    try:
+                        idade = int(''.join(filter(str.isdigit, prompt)))
+                    except ValueError:
+                        pass
 
                 # Processar a consulta
                 result = process_stats_query(df, age=idade, stat_column=stat_column)
+                
                 if result is not None and not result.empty:
+                    message = ""
                     if idade:
-                        st.write(f"Aqui estão os top 10 jogadores com {idade} anos:")
+                        message = f"Aqui estão os top 10 jogadores com {idade} anos:"
+                    elif stat_column:
+                        message = f"Aqui estão os top 10 jogadores por {stat_column}:"
                     else:
-                        st.write("Aqui estão os resultados:")
+                        message = "Aqui estão os resultados:"
+                    
+                    st.write(message)
                     st.table(result)
                 else:
-                    if idade:
-                        st.write(f"Não encontrei jogadores com {idade} anos.")
-                    else:
-                        response = agent.run(prompt)
-                        st.markdown(response)
+                    st.write("Não encontrei resultados para sua consulta. Tente reformular a pergunta.")
+                    st.write("Sugestões de perguntas:")
+                    for i, sugestao in enumerate(suggestions[:5], 1):
+                        st.write(f"{i}. {sugestao}")
 
             except Exception as e:
                 st.error("Ocorreu um erro ao processar sua pergunta.")
-                st.write("Tente usar uma das sugestões da barra lateral ou reformular sua pergunta.")
+                st.write("Tente usar uma das sugestões abaixo ou reformular sua pergunta:")
+                for i, sugestao in enumerate(suggestions[:5], 1):
+                    st.write(f"{i}. {sugestao}")
                 show_column_info(df)
 else:
     st.error("Por favor, coloque arquivos CSV na pasta 'files'.")
