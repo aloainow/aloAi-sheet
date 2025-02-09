@@ -42,11 +42,32 @@ def create_agent(df, openai_api_key, temperature=0.5):
             model_name="gpt-3.5-turbo"
         )
 
+        prompt_prefix = """Você é um assistente que analisa dados de basquete. Para qualquer consulta:
+
+1. SEMPRE use este formato de código:
+```python
+# Filtrar dados
+result_df = df[df['Age'] == 22]
+
+# Selecionar colunas relevantes
+result_df = result_df[['Player Name', 'Team Name', 'League', 'Age', 'Height', 'Pos']]
+
+# Mostrar em tabela formatada
+st.table(result_df)
+```
+
+2. SEMPRE use st.table() para mostrar resultados
+3. SEMPRE selecione apenas colunas relevantes
+4. SEMPRE execute o código completo, não apenas partes
+5. NÃO adicione explicações, apenas execute o código
+
+Lembre-se: Uma tabela bem formatada é melhor que muitos dados confusos."""
+
         return create_pandas_dataframe_agent(
             llm,
             df,
-            handle_parsing_errors=True,
-            verbose=True
+            verbose=True,
+            prefix=prompt_prefix
         )
     except Exception as e:
         st.error(f"Erro ao criar agente: {str(e)}")
@@ -78,7 +99,7 @@ if df is not None:
                 with st.chat_message("assistant"):
                     st_callback = StreamlitCallbackHandler(st.container())
                     response = agent.run(
-                        f"Execute este código Python: {prompt}. Use st.write() para mostrar os resultados.",
+                        f"Mostrar dados em uma tabela formatada: {prompt}",
                         callbacks=[st_callback]
                     )
                     
