@@ -21,24 +21,43 @@ with st.sidebar:
     # Expandable para mostrar estatísticas disponíveis
     with st.expander("📈 Estatísticas Disponíveis"):
         st.markdown("""
-        ### Estatísticas Básicas
-        - **PPG**: Pontos por jogo
-        - **APG**: Assistências por jogo
-        - **RPG**: Rebotes por jogo
-        - **MPG**: Minutos por jogo
-        
-        ### Percentuais
-        - **FG%**: % Arremessos de 2 pontos
-        - **3P%**: % Arremessos de 3 pontos
-        - **FT%**: % Lances livres
-        
         ### Informações do Jogador
         - **Player Name**: Nome do jogador
         - **Team Name**: Nome do time
         - **League**: Liga
+        - **Nationality**: Nacionalidade
+        - **Country**: País
         - **Age**: Idade
         - **Height**: Altura
         - **Pos**: Posição
+        - **GP**: Jogos disputados
+        - **TYPE**: Tipo de jogador
+        
+        ### Estatísticas Principais
+        - **EFF**: Eficiência
+        - **MPG**: Minutos por jogo
+        - **PPG**: Pontos por jogo
+        - **RPG**: Rebotes por jogo
+        - **APG**: Assistências por jogo
+        - **BPG**: Bloqueios por jogo
+        - **SPG**: Roubos de bola por jogo
+        
+        ### Estatísticas Detalhadas
+        - **ORB**: Rebotes ofensivos
+        - **DRB**: Rebotes defensivos
+        - **PF**: Faltas pessoais
+        - **TO**: Turnovers (perdas de bola)
+        
+        ### Arremessos
+        - **FTA**: Tentativas de lance livre
+        - **FTM**: Lances livres convertidos
+        - **FT%**: Percentual de acerto em lances livres
+        - **2PA**: Tentativas de 2 pontos
+        - **2PM**: Arremessos de 2 pontos convertidos
+        - **2P%**: Percentual de acerto em arremessos de 2 pontos
+        - **3PA**: Tentativas de 3 pontos
+        - **3PM**: Arremessos de 3 pontos convertidos
+        - **3P%**: Percentual de acerto em arremessos de 3 pontos
         """)
     
     # Expandable para exemplos de perguntas
@@ -175,14 +194,20 @@ if df is not None:
     # Input do usuário com sugestões
     # Criar lista de sugestões baseada nas colunas
     suggestions = [
-        f"Mostre os jogadores com maior {col}" for col in df.columns 
-        if col in ['PPG', 'APG', 'RPG', 'FG%', '3P%', 'EFF']
+        "Quais são os jogadores com mais pontos por jogo (PPG)?",
+        "Mostre os líderes em assistências (APG)",
+        "Quem tem o melhor aproveitamento nos arremessos de 3 pontos (3P%)?",
+        "Liste os jogadores com maior eficiência (EFF)",
+        "Quais jogadores têm mais roubos de bola (SPG)?",
+        "Mostre os melhores em bloqueios (BPG)",
+        "Quem tem o melhor aproveitamento em lances livres (FT%)?",
+        "Mostre os jogadores que mais jogam minutos por jogo (MPG)",
+        "Quais são os líderes em rebotes (RPG)?",
+        "Liste os jogadores com mais rebotes ofensivos (ORB)",
+        "Mostre os top 10 jogadores de uma idade específica",
+        "Quem são os melhores jogadores por posição (Pos)?",
+        "Liste os jogadores por nacionalidade"
     ]
-    suggestions.extend([
-        "Mostre os top 10 jogadores de 24 anos",
-        "Quais são os jogadores mais eficientes?",
-        "Liste os melhores jogadores com suas estatísticas"
-    ])
 
     # Input do usuário
     if prompt := st.chat_input(
