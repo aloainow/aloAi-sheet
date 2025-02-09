@@ -239,11 +239,31 @@ if df is not None:
                     message = "📊 Resultados da consulta:"
                 
                 # Adicionar contagem de resultados
-                if result is not None:
-                    message += f" (Total: {len(result)} jogadores)"
-                
+                total_players = len(result)
+                message += f" (Total: {total_players} jogadores)"
                 st.write(message)
-                st.table(result)
+                
+                # Adicionar opção de paginação
+                items_per_page = st.slider('Jogadores por página', min_value=10, max_value=50, value=20)
+                total_pages = (total_players + items_per_page - 1) // items_per_page
+                
+                if total_pages > 1:
+                    page = st.number_input('Página', min_value=1, max_value=total_pages, value=1)
+                    start_idx = (page - 1) * items_per_page
+                    end_idx = min(start_idx + items_per_page, total_players)
+                    
+                    st.write(f"Mostrando jogadores {start_idx + 1} a {end_idx} de {total_players}")
+                    st.table(result.iloc[start_idx:end_idx])
+                else:
+                    st.table(result)
+                
+                # Adicionar opção de download
+                st.download_button(
+                    label="Download dados completos (CSV)",
+                    data=result.to_csv(index=False).encode('utf-8'),
+                    file_name='jogadores.csv',
+                    mime='text/csv'
+                )
             else:
                 st.warning("Não encontrei resultados para sua consulta. Tente reformular a pergunta.")
                 st.write("Sugestões:")
