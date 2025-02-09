@@ -32,8 +32,8 @@ st.title("BasketIA 🏀")
 # Sidebar About
 about = st.sidebar.expander("🧠 About")
 about.write(
-    """Encontre e compare jogadores utilizando as estéticas combinadas para possíveis convocações.
-Você pode consultar jogadores por idade, país, liga, entre outros critérios, e também solicitar gráficos que mostrem a evolução de atributos ao longo das temporadas."""
+    """Encontre e analise jogadores utilizando as estéticas combinadas para possíveis convocações.
+Você pode consultar jogadores por idade, país, liga, etc., e também solicitar gráficos que mostrem a evolução de atributos ao longo das temporadas."""
 )
 
 # Configuração da temperatura no sidebar
@@ -54,27 +54,31 @@ with st.sidebar.expander("🛠️ Tools", expanded=False):
 openai_api_key = st.secrets["OPENAI_API_KEY"]
 
 # ─────────────────────────────────────────────
-# Definição do prompt para o agente
+# Definição do prompt para o agente (versão estrita)
 # ─────────────────────────────────────────────
 prompt_template = PromptTemplate(
     input_variables=['prompt', 'columns', 'shape', 'missing'],
-    template="""You are a basketball data analyst with expertise in Python, pandas, matplotlib, and seaborn. You have a DataFrame named "df" that contains basketball player data with the following columns:
+    template="""You are a basketball data analyst with expertise in Python, pandas, matplotlib, and seaborn.
+You have a DataFrame named "df" that contains basketball player data with the following columns:
 'Player Name', 'Team Name', 'League', 'Nationality', 'Country', 'Age', 'Height', 'Pos', 'GP', 'EFF', 'MPG', 'PPG', 'RPG', 'ORB', 'DRB', 'APG', 'BPG', 'SPG', 'PF', 'FTA', 'FTM', 'FT%', '2PA', '2PM', '2P%', '3PA', '3PM', '3P%', 'TO', and 'TYPE'.
 
-In addition, the DataFrame already includes columns for offensive and defensive metrics. Your task is to combine these metrics into a new column called "Combined Metric". Compute it as a simple average:
+Additionally, the DataFrame already includes columns for offensive and defensive metrics.
+Your task is to combine these metrics into a new column "Combined Metric" by computing:
     Combined Metric = (Offensive Metric + Defensive Metric) / 2
 
 Based solely on the data in "df" and given a user's query, generate a short, executable Python code snippet that performs the following tasks:
-
 1. Filter the DataFrame according to the query criteria (for example, age, country, league, etc.).
-2. Combine the existing metrics by creating a new column "Combined Metric" as described above.
+2. Create a new column "Combined Metric" as described.
 3. Sort the filtered results based on "Combined Metric" in descending order.
-4. Select the top players as specified in the query (the user may request 5 players or only 1 player).
-5. If the query requests a graphical visualization (for example, "show a line chart of the evolution of PPG over the seasons"), generate an appropriate plot using matplotlib or seaborn. The graph should display the evolution of the specified attribute over the seasons for the selected player(s).
-6. Return only the Python code enclosed in triple backticks (```), without any additional commentary or explanation.
+4. Select the top players as specified in the query (the user may request a specific number of players, e.g., 5 players or only 1).
+5. If the query requests a graphical visualization (for example, "show a line chart of the evolution of PPG over the seasons"), generate an appropriate plot using matplotlib or seaborn.
+6. IMPORTANT: Your output must contain ONLY the Python code enclosed in triple backticks (```), with no additional text, commentary, instructions, or tool references.
+
+For example, if the user query is:
+"List 5 players aged 19 who play in Italy with the best combined aesthetics, and show a line chart of their PPG evolution over the seasons."
+Your response must be exactly a Python code snippet enclosed in triple backticks.
 
 User Query: {prompt}
-
 Columns: {columns}
 DataFrame shape: {shape}
 Missing values: {missing}
@@ -115,7 +119,7 @@ def load_csv_data():
 # ─────────────────────────────────────────────
 def generate_code(prompt, columns, missing, shape):
     try:
-        # Cria o modelo usando ChatOpenAI com o nome do modelo definido (ex: "gpt-4o" se for o nome desejado)
+        # Cria o modelo usando ChatOpenAI com o modelo desejado (por exemplo, "gpt-4o")
         llm = ChatOpenAI(
             api_key=openai_api_key,
             model_name="gpt-4o",  # Substitua "gpt-4o" pelo nome do modelo desejado
@@ -147,8 +151,8 @@ def generate_code(prompt, columns, missing, shape):
 if "messages" not in st.session_state or st.sidebar.button("Limpar histórico de conversa"):
     st.session_state["messages"] = [{
         "role": "assistant",
-        "content": """Olá, através de prompts, encontre e analise jogadores com base nas estéticas combinadas para possíveis convocações.
-Você pode solicitar filtros específicos (por exemplo, idade, país, liga) e também pedir para visualizar gráficos de evolução de atributos ao longo das temporadas."""
+        "content": """Olá, através de prompts, encontre e analise jogadores utilizando as estéticas combinadas para possíveis convocações.
+Você pode solicitar filtros específicos (como idade, país, liga) e também pedir para visualizar gráficos de evolução de atributos ao longo das temporadas."""
     }]
     st.session_state['history'] = []
 
@@ -170,11 +174,11 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
             try:
                 prompt_response = generate_code(prompt, columns, missing, shape)
                 if prompt_response:
-                    # Cria o agente usando o modelo ChatOpenAI (aqui usamos "gpt-3.5-turbo" para a execução do agente; ajuste conforme necessário)
+                    # Cria o agente usando o modelo ChatOpenAI para executar o código gerado
                     agent = create_pandas_dataframe_agent(
                         ChatOpenAI(
                             api_key=openai_api_key,
-                            model_name="gpt-3.5-turbo",
+                            model_name="gpt-3.5-turbo",  # Ajuste conforme necessário para execução
                             temperature=st.session_state["temperature"]
                         ),
                         df,
