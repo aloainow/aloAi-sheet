@@ -8,15 +8,15 @@ import seaborn as sns
 import streamlit as st
 from sklearn.linear_model import LinearRegression
 from streamlit_chat import message
-import statsmodels as sm
 
-from langchain.agents import create_pandas_dataframe_agent, AgentExecutor
+# Updated LangChain imports
+from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from langchain.agents.agent_types import AgentType
 from langchain.callbacks import StreamlitCallbackHandler
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 
 # Page configuration
 st.set_page_config(page_title="BasketIA 🏀", page_icon="🏀", layout="wide")
@@ -93,12 +93,13 @@ def create_agent(df, openai_api_key, temperature=0.5):
         st.error(f"Error creating agent: {str(e)}")
         return None
 
-# Main chat interface
+# Initialize session state for messages
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Hello! How can I help you analyze basketball data today?"}
     ]
 
+# Display chat messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
