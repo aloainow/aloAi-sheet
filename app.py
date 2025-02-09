@@ -9,14 +9,13 @@ import streamlit as st
 from sklearn.linear_model import LinearRegression
 from streamlit_chat import message
 
-# Updated LangChain imports
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from langchain.agents.agent_types import AgentType
 from langchain.callbacks import StreamlitCallbackHandler
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
-from langchain.chat_models import ChatOpenAI  # Changed from langchain_openai
+from langchain.chat_models import ChatOpenAI
 
 # Page configuration
 st.set_page_config(page_title="BasketIA 🏀", page_icon="🏀", layout="wide")
@@ -33,7 +32,6 @@ with st.sidebar:
     You can query players by age, country, league, etc., and request graphs showing attribute evolution over seasons.
     """)
 
-# Load data function
 def load_data():
     try:
         files = [f for f in os.listdir('files') if f.endswith('.csv')]
@@ -55,23 +53,31 @@ def load_data():
         st.error(f"Error loading file: {str(e)}")
         return None
 
-# Custom prompt template
-AGENT_PROMPT = """You are a basketball data analyst expert. Analyze the DataFrame 'df' with these columns:
-{columns}
+def is_analytical_query(query):
+    """Check if the query requires data analysis."""
+    analytical_keywords = [
+        'show', 'analyze', 'find', 'compare', 'list', 'plot', 'graph', 'calculate',
+        'stats', 'statistics', 'average', 'mean', 'players', 'team', 'league',
+        'age', 'height', 'score', 'points', 'best', 'worst', 'top', 'bottom'
+    ]
+    return any(keyword in query.lower() for keyword in analytical_keywords)
 
-For each query:
-1. Create a Combined Metric = (Offensive Metric + Defensive Metric) / 2
-2. Filter data based on query criteria
-3. Sort by Combined Metric
-4. Return top results as specified
-5. Create visualizations if requested
+def get_greeting_response(query):
+    """Handle conversational queries."""
+    greetings = {
+        'olá': 'Olá! Como posso ajudar com a análise dos dados de basquete hoje? Você pode me perguntar sobre estatísticas dos jogadores, comparações entre times, ou solicitar gráficos de desempenho.',
+        'oi': 'Oi! Estou aqui para ajudar com análises de basquete. Que tipo de informação você gostaria de ver?',
+        'hello': 'Hello! How can I help you analyze basketball data today?',
+        'hi': 'Hi! Ready to help you with basketball analytics. What would you like to know?'
+    }
+    
+    query_lower = query.lower()
+    for greeting, response in greetings.items():
+        if greeting in query_lower:
+            return response
+    
+    return "Como posso ajudar com sua análise de dados de basquete? Você pode perguntar sobre estatísticas específicas, comparar jogadores ou solicitar visualizações de dados."
 
-Current query: {query}
-
-Respond with executable Python code only. Use matplotlib or seaborn for visualizations.
-"""
-
-# Agent creation function with better error handling
 def create_agent(df, openai_api_key, temperature=0.5):
     try:
         llm = ChatOpenAI(
@@ -93,10 +99,10 @@ def create_agent(df, openai_api_key, temperature=0.5):
         st.error(f"Error creating agent: {str(e)}")
         return None
 
-# Initialize session state for messages
+# Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Hello! How can I help you analyze basketball data today?"}
+        {"role": "assistant", "content": "Olá! Como posso ajudar com a análise dos dados de basquete hoje?"}
     ]
 
 # Display chat messages
@@ -104,38 +110,40 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Load data and create agent
+# Load data and handle queries
 df = load_data()
 if df is not None:
     if "OPENAI_API_KEY" in st.secrets:
         agent = create_agent(df, st.secrets["OPENAI_API_KEY"], temperature)
         
-        if prompt := st.chat_input("Ask about basketball data..."):
+        if prompt := st.chat_input("Faça uma pergunta sobre os dados de basquete..."):
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
 
             try:
                 with st.chat_message("assistant"):
-                    st_callback = StreamlitCallbackHandler(st.container())
-                    response = agent.run(
-                        f"Based on this query: {prompt}\nAnalyze the data and provide insights. Include visualizations if relevant.",
-                        callbacks=[st_callback]
-                    )
-                    
-                    # Handle matplotlib figures if present
-                    if plt.get_fignums():
-                        for fig_num in plt.get_fignums():
-                            fig = plt.figure(fig_num)
-                            st.pyplot(fig)
-                            plt.close(fig)
+                    if is_analytical_query(prompt):
+                        st_callback = StreamlitCallbackHandler(st.container())
+                        response = agent.run(
+                            f"Analyze this query and provide insights: {prompt}. If it involves visualization, create appropriate charts.",
+                            callbacks=[st_callback]
+                        )
+                        
+                        if plt.get_fignums():
+                            for fig_num in plt.get_fignums():
+                                fig = plt.figure(fig_num)
+                                st.pyplot(fig)
+                                plt.close(fig)
+                    else:
+                        response = get_greeting_response(prompt)
                     
                     st.session_state.messages.append({"role": "assistant", "content": response})
                     st.markdown(response)
 
             except Exception as e:
                 st.error(f"Error during analysis: {str(e)}")
-                st.error("Please try rephrasing your question or selecting different analysis parameters.")
+                st.error("Por favor, tente reformular sua pergunta ou selecione diferentes parâmetros de análise.")
     else:
         st.error("OpenAI API key not found in secrets.")
 else:
