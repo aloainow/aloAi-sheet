@@ -74,9 +74,6 @@ Based solely on the data in "df" and given a user's query, generate a short, exe
 5. If the query requests a graphical visualization (for example, "show a line chart of the evolution of PPG over the seasons"), generate an appropriate plot using matplotlib or seaborn.
 6. IMPORTANT: Your output must contain ONLY the Python code enclosed in triple backticks (```), with no additional text, commentary, instructions, or tool references.
 
-For example, if the user query is:
-"List 5 players aged 19 who play in Italy with the best combined aesthetics, and show a line chart of their PPG evolution over the seasons."
-Your response must be exactly a Python code snippet enclosed in triple backticks.
 
 User Query: {prompt}
 Columns: {columns}
