@@ -209,7 +209,9 @@ if prompt := st.chat_input(placeholder="Inicie aqui seu chat!"):
     else:
         st.warning("Erro ao carregar os dados. Verifique se existem arquivos CSV na pasta 'files'.")
 
-# Esconde elementos padrão do Streamlit
+# ─────────────────────────────────────────────
+# Estilos para esconder elementos padrão do Streamlit
+# ─────────────────────────────────────────────
 hide_streamlit_style = """
 <style>
 #MainMenu {visibility: hidden;}
