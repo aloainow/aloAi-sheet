@@ -232,11 +232,15 @@ if df is not None:
             if result is not None and not result.empty:
                 message = ""
                 if idade:
-                    message = f"📊 Top 10 jogadores com {idade} anos:"
+                    message = f"📊 Lista de todos os jogadores com {idade} anos:"
                 elif stat_column:
-                    message = f"📊 Top 10 jogadores por {stat_column}:"
+                    message = f"📊 Lista de jogadores ordenados por {stat_column}:"
                 else:
                     message = "📊 Resultados da consulta:"
+                
+                # Adicionar contagem de resultados
+                if result is not None:
+                    message += f" (Total: {len(result)} jogadores)"
                 
                 st.write(message)
                 st.table(result)
