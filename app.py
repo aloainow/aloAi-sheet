@@ -27,6 +27,15 @@ def load_data():
         
         selected_file = files[0]
         df = pd.read_csv(os.path.join('files', selected_file))
+        
+        # Verificar e padronizar nomes das colunas
+        column_mapping = {
+            '2P%': 'FG%',  # Padronizar nome da coluna
+            'Field Goal %': 'FG%',
+            'Field Goal Percentage': 'FG%'
+        }
+        df = df.rename(columns=column_mapping)
+        
         return df
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {str(e)}")
@@ -36,35 +45,52 @@ def create_agent(df):
     """Cria o agente do LangChain"""
     try:
         llm = ChatOpenAI(
-            temperature=0.0,
+            temperature=temperature,  # Usar temperatura da sidebar
             api_key=st.secrets["OPENAI_API_KEY"],
             model_name="gpt-3.5-turbo"
         )
 
-        # Prompt personalizado para cálculos ofensivos
-        prefix = """Você é um assistente que analisa estatísticas de basquete. Para análises ofensivas:
-
-1. Use este código base:
-python_repl_ast
-# Calcular métrica ofensiva
-df['Metrica_Ofensiva'] = df['PPG'] * 0.4 + df['APG'] * 0.3 + df['FG%'] * 0.3
-
-# Selecionar top 10
-result = df.nlargest(10, 'Metrica_Ofensiva')[['Player Name', 'Team Name', 'League', 'PPG', 'APG', 'FG%', 'Metrica_Ofensiva']]
-
-# Formatar e mostrar
-result = result.round(1)
-st.table(result)
-
-2. Sempre use python_repl_ast para executar código
-3. Sempre mostre resultados com st.table()
-4. Não adicione explicações, apenas execute o código"""
+        # Prompt personalizado mais robusto
+        prefix = """Você é um assistente especializado em análise de estatísticas de basquete. 
+        
+        Regras importantes:
+        1. Sempre verifique os nomes das colunas disponíveis antes de usar
+        2. Use df.columns para listar colunas disponíveis
+        3. Para cálculos ofensivos, use:
+           - PPG (Pontos por jogo)
+           - APG (Assistências por jogo)
+           - FG% (Percentual de acerto)
+        4. Sempre use st.table() para mostrar resultados
+        5. Trate erros de forma adequada
+        6. Arredonde números para uma casa decimal
+        
+        Exemplo de código base:
+        ```python
+        # Verificar colunas
+        print(df.columns)
+        
+        # Calcular métrica
+        df['Metrica_Ofensiva'] = (
+            df['PPG'] * 0.4 + 
+            df['APG'] * 0.3 + 
+            df['FG%'] * 0.3
+        )
+        
+        # Selecionar e mostrar top 10
+        result = df.nlargest(10, 'Metrica_Ofensiva')[
+            ['Player Name', 'Team Name', 'League', 'PPG', 'APG', 'FG%', 'Metrica_Ofensiva']
+        ].round(1)
+        
+        st.table(result)
+        ```
+        """
 
         return create_pandas_dataframe_agent(
             llm,
             df,
             prefix=prefix,
-            verbose=True
+            verbose=True,
+            handle_parsing_errors=True  # Adicionar tratamento de erros
         )
     except Exception as e:
         st.error(f"Erro ao criar agente: {str(e)}")
@@ -80,7 +106,7 @@ if df is not None:
     # Interface do chat
     if "messages" not in st.session_state:
         st.session_state.messages = [
-            {"role": "assistant", "content": "Olá! Como posso ajudar com a análise dos dados?"}
+            {"role": "assistant", "content": "Olá! Como posso ajudar com a análise dos dados? Você pode perguntar sobre estatísticas ofensivas, rankings de jogadores e mais."}
         ]
 
     # Mostrar histórico de mensagens
@@ -97,27 +123,41 @@ if df is not None:
         # Processar resposta
         with st.chat_message("assistant"):
             try:
+                # Adicionar verificação de colunas antes da execução
                 if "top" in prompt.lower() and ("ofensiv" in prompt.lower() or "estatistica" in prompt.lower()):
-                    # Código direto para top 10 ofensivo
-                    response = agent.run("""python_repl_ast
-# Calcular métrica ofensiva
-df['Metrica_Ofensiva'] = df['PPG'] * 0.4 + df['APG'] * 0.3 + df['FG%'] * 0.3
-
-# Selecionar top 10
-result = df.nlargest(10, 'Metrica_Ofensiva')[['Player Name', 'Team Name', 'League', 'PPG', 'APG', 'FG%', 'Metrica_Ofensiva']]
-
-# Formatar e mostrar
-result = result.round(1)
-st.table(result)""")
+                    # Verificar colunas necessárias
+                    required_columns = ['PPG', 'APG', 'FG%']
+                    missing_columns = [col for col in required_columns if col not in df.columns]
+                    
+                    if missing_columns:
+                        st.error(f"Colunas necessárias não encontradas: {', '.join(missing_columns)}")
+                        st.write("Colunas disponíveis:", ", ".join(df.columns))
+                    else:
+                        response = agent.run("""
+                        # Verificar colunas
+                        print(df.columns)
+                        
+                        # Calcular métrica ofensiva
+                        df['Metrica_Ofensiva'] = df['PPG'] * 0.4 + df['APG'] * 0.3 + df['FG%'] * 0.3
+                        
+                        # Selecionar top 10
+                        result = df.nlargest(10, 'Metrica_Ofensiva')[
+                            ['Player Name', 'Team Name', 'League', 'PPG', 'APG', 'FG%', 'Metrica_Ofensiva']
+                        ].round(1)
+                        
+                        st.table(result)
+                        """)
                 else:
                     response = agent.run(prompt)
                 
-                st.session_state.messages.append({"role": "assistant", "content": response})
-                if isinstance(response, str):
-                    st.markdown(response)
+                if response:
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    if isinstance(response, str):
+                        st.markdown(response)
             except Exception as e:
                 st.error(f"Erro na análise: {str(e)}")
-                st.error("Tente reformular sua pergunta.")
+                st.write("Dica: Tente ser mais específico na sua pergunta ou verifique se as colunas necessárias estão disponíveis.")
+                st.write("Colunas disponíveis:", ", ".join(df.columns))
 else:
     st.error("Por favor, coloque arquivos CSV na pasta 'files'.")
 
