@@ -98,8 +98,8 @@ def show_column_info(df):
         available_cols = [col for col in cols if col in df.columns]
         st.write(", ".join(available_cols))
 
-def process_stats_query(df, age=None, stat_column=None):
-    """Processa consulta de estatísticas"""
+def process_stats_query(df, age=None, stat_column=None, height=None, multiple_stats=False):
+    """Processa consulta de estatísticas com múltiplos critérios"""
     try:
         # Filtrar por idade se especificado
         if age is not None:
@@ -190,21 +190,44 @@ if df is not None:
             idade = None
             prompt_lower = user_input.lower()
 
-            # Verificar estatística específica
-            for col, keywords in stat_keywords.items():
-                if any(keyword in prompt_lower for keyword in keywords):
-                    stat_column = col
-                    break
+            # Verificar múltiplas estatísticas
+            multiple_stats = all(stat in prompt_lower for stat in ['eff', 'ppg', 'apg'])
+            
+            # Verificar estatística específica se não for múltipla
+            stat_column = None
+            if not multiple_stats:
+                for col, keywords in stat_keywords.items():
+                    if any(keyword in prompt_lower for keyword in keywords):
+                        stat_column = col
+                        break
 
             # Verificar idade
-            if "anos" in prompt_lower:
+            idade = None
+            if "age" in prompt_lower or "anos" in prompt_lower:
                 try:
                     idade = int(''.join(filter(str.isdigit, user_input)))
                 except ValueError:
                     pass
 
+            # Verificar altura
+            altura = None
+            if "height" in prompt_lower or "altura" in prompt_lower:
+                try:
+                    # Procurar por números com vírgula ou ponto
+                    import re
+                    height_match = re.search(r'\d+[.,]\d+', user_input)
+                    if height_match:
+                        altura = float(height_match.group().replace(',', '.'))
+                except ValueError:
+                    pass
+
             # Processar a consulta
-            result = process_stats_query(df, age=idade, stat_column=stat_column)
+            result = process_stats_query(
+                df, 
+                age=idade, 
+                stat_column=stat_column,
+                height=altura,
+                multiple_stats=multiple_stats)
             
             if result is not None and not result.empty:
                 message = ""
