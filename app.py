@@ -59,10 +59,14 @@ def create_agent(df):
         3. Para cálculos ofensivos, use:
            - PPG (Pontos por jogo)
            - APG (Assistências por jogo)
-           - FG% (Percentual de acerto)
-        4. Sempre use st.table() para mostrar resultados
-        5. Trate erros de forma adequada
-        6. Arredonde números para uma casa decimal
+           - FG% (Percentual de arremessos de 2 pontos)
+           - 3P% (Percentual de arremessos de 3 pontos)
+        4. Para filtrar por idade, use a coluna 'Age'
+        5. Sempre use st.table() para mostrar resultados
+        6. Trate erros de forma adequada
+        7. Arredonde números para uma casa decimal
+        8. Para mostrar jogadores específicos, use:
+           filtered_df = df[df['Age'] == idade_desejada]
         
         Exemplo de código base:
         ```python
@@ -134,17 +138,27 @@ if df is not None:
                         st.write("Colunas disponíveis:", ", ".join(df.columns))
                     else:
                         response = agent.run("""
-                        # Verificar colunas
-                        print(df.columns)
-                        
-                        # Calcular métrica ofensiva
-                        df['Metrica_Ofensiva'] = df['PPG'] * 0.4 + df['APG'] * 0.3 + df['FG%'] * 0.3
+                        # Filtrar por idade se necessário
+                        if 'idade' in prompt.lower():
+                            idade = int(''.join(filter(str.isdigit, prompt)))
+                            filtered_df = df[df['Age'] == idade]
+                        else:
+                            filtered_df = df.copy()
+                            
+                        # Calcular métrica ofensiva (adaptada para seu dataset)
+                        filtered_df['Metrica_Ofensiva'] = (
+                            filtered_df['PPG'] * 0.4 + 
+                            filtered_df['APG'] * 0.3 + 
+                            filtered_df['FG%'] * 0.15 + 
+                            filtered_df['3P%'] * 0.15
+                        )
                         
                         # Selecionar top 10
-                        result = df.nlargest(10, 'Metrica_Ofensiva')[
-                            ['Player Name', 'Team Name', 'League', 'PPG', 'APG', 'FG%', 'Metrica_Ofensiva']
+                        result = filtered_df.nlargest(10, 'Metrica_Ofensiva')[
+                            ['Player Name', 'Team Name', 'League', 'Age', 'PPG', 'APG', 'FG%', '3P%', 'Metrica_Ofensiva']
                         ].round(1)
                         
+                        # Exibir resultados
                         st.table(result)
                         """)
                 else:
