@@ -27,37 +27,10 @@ def load_data():
         
         selected_file = files[0]
         df = pd.read_csv(os.path.join('files', selected_file))
-        
-        st.sidebar.write(f"Dataset: {selected_file}")
-        st.sidebar.write(f"Registros: {len(df)}")
         return df
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {str(e)}")
         return None
-
-def format_table(df):
-    """Formata tabela com todas as estatísticas"""
-    try:
-        # Selecionar todas as colunas relevantes
-        stats_columns = [
-            'Player Name', 'Team Name', 'League', 'Age', 'Height', 'Pos',
-            'GP', 'MPG', 'PPG', 'RPG', 'APG', 'SPG', 'BPG',
-            'FG%', '3P%', 'FT%', 'EFF'
-        ]
-        
-        # Filtrar apenas colunas disponíveis
-        available_columns = [col for col in stats_columns if col in df.columns]
-        result_df = df[available_columns]
-        
-        # Formatar números para 1 casa decimal
-        numeric_columns = result_df.select_dtypes(include=['float64', 'int64']).columns
-        for col in numeric_columns:
-            result_df[col] = result_df[col].round(1)
-        
-        # Mostrar a tabela
-        st.table(result_df)
-    except Exception as e:
-        st.error(f"Erro ao formatar tabela: {str(e)}")
 
 def create_agent(df):
     """Cria o agente do LangChain"""
@@ -68,64 +41,34 @@ def create_agent(df):
             model_name="gpt-3.5-turbo"
         )
 
+        # Prompt personalizado para cálculos ofensivos
+        prefix = """Você é um assistente que analisa estatísticas de basquete. Para análises ofensivas:
+
+1. Use este código base:
+python_repl_ast
+# Calcular métrica ofensiva
+df['Metrica_Ofensiva'] = df['PPG'] * 0.4 + df['APG'] * 0.3 + df['FG%'] * 0.3
+
+# Selecionar top 10
+result = df.nlargest(10, 'Metrica_Ofensiva')[['Player Name', 'Team Name', 'League', 'PPG', 'APG', 'FG%', 'Metrica_Ofensiva']]
+
+# Formatar e mostrar
+result = result.round(1)
+st.table(result)
+
+2. Sempre use python_repl_ast para executar código
+3. Sempre mostre resultados com st.table()
+4. Não adicione explicações, apenas execute o código"""
+
         return create_pandas_dataframe_agent(
             llm,
             df,
+            prefix=prefix,
             verbose=True
         )
     except Exception as e:
         st.error(f"Erro ao criar agente: {str(e)}")
         return None
-
-def process_query(agent, df, query):
-    """Processa queries e retorna resultados"""
-    try:
-        # Processar top 10 ofensivo
-        if "top" in query.lower() and "ofensiv" in query.lower():
-            # Calcular métrica ofensiva
-            df['Métrica_Ofensiva'] = (
-                df['PPG'] * 0.4 +  # Pontos por jogo
-                df['APG'] * 0.3 +  # Assistências por jogo
-                df['FG%'] * 0.3    # Porcentagem de arremessos
-            )
-            
-            # Ordenar e pegar top 10
-            top_10 = df.nlargest(10, 'Métrica_Ofensiva')
-            
-            # Selecionar colunas para exibição
-            display_columns = [
-                'Player Name', 'Team Name', 'League',
-                'PPG', 'APG', 'FG%', '3P%', 'FT%',
-                'MPG', 'EFF', 'Métrica_Ofensiva'
-            ]
-            
-            # Formatar e mostrar tabela
-            result_df = top_10[display_columns].copy()
-            
-            # Arredondar valores numéricos
-            numeric_cols = result_df.select_dtypes(include=['float64', 'int64']).columns
-            result_df[numeric_cols] = result_df[numeric_cols].round(1)
-            
-            st.table(result_df)
-            return "Top 10 jogadores por métricas ofensivas."
-            
-        # Processar queries sobre idade
-        elif "jogadores" in query.lower() and "anos" in query.lower():
-            age = [int(s) for s in query.split() if s.isdigit()][0]
-            filtered_df = df[df['Age'] == age]
-            
-            if not filtered_df.empty:
-                format_table(filtered_df)
-                return f"Mostrando jogadores com {age} anos e suas estatísticas."
-            else:
-                return f"Não encontrei jogadores com {age} anos."
-        
-        # Processar outras queries usando o agente
-        else:
-            return agent.run(query)
-    except Exception as e:
-        st.error(f"Erro ao processar query: {str(e)}")
-        return "Desculpe, não consegui processar sua solicitação."
 
 # Carregamento dos dados
 df = load_data()
@@ -153,12 +96,28 @@ if df is not None:
 
         # Processar resposta
         with st.chat_message("assistant"):
-            response = process_query(agent, df, prompt)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            
-            if isinstance(response, str):
-                st.markdown(response)
+            try:
+                if "top" in prompt.lower() and ("ofensiv" in prompt.lower() or "estatistica" in prompt.lower()):
+                    # Código direto para top 10 ofensivo
+                    response = agent.run("""python_repl_ast
+# Calcular métrica ofensiva
+df['Metrica_Ofensiva'] = df['PPG'] * 0.4 + df['APG'] * 0.3 + df['FG%'] * 0.3
 
+# Selecionar top 10
+result = df.nlargest(10, 'Metrica_Ofensiva')[['Player Name', 'Team Name', 'League', 'PPG', 'APG', 'FG%', 'Metrica_Ofensiva']]
+
+# Formatar e mostrar
+result = result.round(1)
+st.table(result)""")
+                else:
+                    response = agent.run(prompt)
+                
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                if isinstance(response, str):
+                    st.markdown(response)
+            except Exception as e:
+                st.error(f"Erro na análise: {str(e)}")
+                st.error("Tente reformular sua pergunta.")
 else:
     st.error("Por favor, coloque arquivos CSV na pasta 'files'.")
 
@@ -181,10 +140,6 @@ st.markdown("""
     }
     .stTable td:first-child {
         text-align: left;
-    }
-    .metric-highlight {
-        font-weight: bold;
-        color: #1f77b4;
     }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
