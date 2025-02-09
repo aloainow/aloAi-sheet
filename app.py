@@ -133,7 +133,7 @@ def process_stats_query(df, age=None, stat_column=None, height=None, multiple_st
                 df['3P%'] * 0.15
             )
             columns = ['Player Name', 'Team Name', 'League', 'Age', 
-                      'PPG', 'APG', '2P%', '3P%', 'Metrica_Ofensiva']
+                       'PPG', 'APG', '2P%', '3P%', 'Metrica_Ofensiva']
             result = df[columns].sort_values(by='Metrica_Ofensiva', ascending=False).round(2)
         
         return result
@@ -141,101 +141,109 @@ def process_stats_query(df, age=None, stat_column=None, height=None, multiple_st
         st.error(f"Erro ao processar estatísticas: {str(e)}")
         return None
 
-# Na parte do processamento da consulta, atualize a verificação de múltiplas estatísticas:
-if user_input:
-    try:
-        stat_keywords = {
-            'PPG': ['ppg', 'pontos por jogo', 'pontos'],
-            'APG': ['apg', 'assistências', 'assistencias'],
-            'RPG': ['rpg', 'rebotes'],
-            '2P%': ['2p%', 'field goal', 'arremessos de 2'],
-            '3P%': ['3p%', 'three point', 'arremessos de 3'],
-            'EFF': ['eff', 'eficiência', 'eficiencia']
-        }
-        
-        prompt_lower = user_input.lower()
-        
-        # Verificar se a consulta é para múltiplas estatísticas
-        multiple_stats = ('eff' in prompt_lower and 'ppg' in prompt_lower and 'apg' in prompt_lower)
-        
-        # Verificar idade
-        idade = None
-        if "age" in prompt_lower or "anos" in prompt_lower:
-            try:
-                idade = int(''.join(filter(str.isdigit, user_input)))
-            except ValueError:
-                pass
+def main():
+    # Carrega os dados
+    df = load_data()
+    if df is None:
+        st.error("Nenhum arquivo CSV encontrado na pasta 'files'.")
+        return
 
-        # Verificar estatística específica se não for múltipla
-        stat_column = None
-        if not multiple_stats:
-            for col, keywords in stat_keywords.items():
-                if any(keyword in prompt_lower for keyword in keywords):
-                    stat_column = col
-                    break
+    # Caixa de entrada para consulta do usuário
+    user_input = st.text_input("Digite sua consulta:")
+    num_results = st.slider("Número de resultados a mostrar", min_value=1, max_value=50, value=10)
+    
+    if user_input:
+        try:
+            stat_keywords = {
+                'PPG': ['ppg', 'pontos por jogo', 'pontos'],
+                'APG': ['apg', 'assistências', 'assistencias'],
+                'RPG': ['rpg', 'rebotes'],
+                '2P%': ['2p%', 'field goal', 'arremessos de 2'],
+                '3P%': ['3p%', 'three point', 'arremessos de 3'],
+                'EFF': ['eff', 'eficiência', 'eficiencia']
+            }
+            
+            prompt_lower = user_input.lower()
+            
+            # Verificar se a consulta é para múltiplas estatísticas (EFF, PPG e APG)
+            multiple_stats = ('eff' in prompt_lower and 'ppg' in prompt_lower and 'apg' in prompt_lower)
+            
+            # Verificar idade (caso a consulta mencione "age" ou "anos")
+            idade = None
+            if "age" in prompt_lower or "anos" in prompt_lower:
+                try:
+                    idade = int(''.join(filter(str.isdigit, user_input)))
+                except ValueError:
+                    pass
 
-        # Processar a consulta
-        result = process_stats_query(
-            df, 
-            age=idade, 
-            stat_column=stat_column,
-            height=None,
-            multiple_stats=multiple_stats
-        )
+            # Verificar se há uma estatística específica na consulta (quando não for múltipla)
+            stat_column = None
+            if not multiple_stats:
+                for col, keywords in stat_keywords.items():
+                    if any(keyword in prompt_lower for keyword in keywords):
+                        stat_column = col
+                        break
+
+            # Processar a consulta
+            result = process_stats_query(
+                df, 
+                age=idade, 
+                stat_column=stat_column,
+                height=None,
+                multiple_stats=multiple_stats
+            )
+            
+            if result is not None and not result.empty:
+                total_players = len(result)
                 
-                if result is not None and not result.empty:
-                    total_players = len(result)
-                    
-                    # Permitir que o usuário veja todos os resultados ou limite pelo slider
-                    result_displayed = result.head(num_results) if num_results < len(result) else result
-                    
-                    message = f"📊 Resultados encontrados:"
-                    message += f" (Mostrando {len(result_displayed)} de {total_players} jogadores)"
-                    st.write(message)
-                    
-                    # Mostrar todos os dados com scroll
-                    st.dataframe(
-                        result_displayed,
-                        use_container_width=True,
-                        height=500  # Altura fixa com scroll
-                    )
-                    
-                    # Adicionar estatísticas resumidas
-                    st.write("### Resumo das estatísticas")
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.metric("Total de Jogadores", total_players)
-                    
-                    with col2:
-                        leagues = result['League'].nunique()
-                        st.metric("Ligas Diferentes", leagues)
-                    
-                    with col3:
-                        teams = result['Team Name'].nunique()
-                        st.metric("Times Diferentes", teams)
-                    
-                    # Adicionar opção de download
-                    st.download_button(
-                        label="📥 Download lista completa (CSV)",
-                        data=result.to_csv(index=False).encode('utf-8'),
-                        file_name='jogadores_completo.csv',
-                        mime='text/csv',
-                        help="Clique para baixar a lista completa em formato CSV"
-                    )
-                else:
-                    st.warning("Não encontrei resultados para sua consulta. Tente reformular a pergunta.")
-                    st.write("Sugestões:")
-                    st.write("1. Use os nomes exatos das estatísticas (PPG, APG, etc.)")
-                    st.write("2. Especifique a idade se quiser filtrar por idade")
-                    st.write("3. Consulte as estatísticas disponíveis na barra lateral")
-
-            except Exception as e:
-                st.error("Ocorreu um erro ao processar sua pergunta.")
-                st.write("Dicas para melhorar sua consulta:")
-                show_column_info(df)
+                # Exibir os resultados limitados pelo slider, se necessário
+                result_displayed = result.head(num_results) if num_results < len(result) else result
+                
+                message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} jogadores)"
+                st.write(message)
+                
+                # Exibir os dados com scroll
+                st.dataframe(
+                    result_displayed,
+                    use_container_width=True,
+                    height=500  # Altura fixa para permitir scroll
+                )
+                
+                # Estatísticas resumidas
+                st.write("### Resumo das estatísticas")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("Total de Jogadores", total_players)
+                
+                with col2:
+                    leagues = result['League'].nunique()
+                    st.metric("Ligas Diferentes", leagues)
+                
+                with col3:
+                    teams = result['Team Name'].nunique()
+                    st.metric("Times Diferentes", teams)
+                
+                # Botão para download dos resultados
+                st.download_button(
+                    label="📥 Download lista completa (CSV)",
+                    data=result.to_csv(index=False).encode('utf-8'),
+                    file_name='jogadores_completo.csv',
+                    mime='text/csv',
+                    help="Clique para baixar a lista completa em formato CSV"
+                )
+            else:
+                st.warning("Não encontrei resultados para sua consulta. Tente reformular a pergunta.")
+                st.write("Sugestões:")
+                st.write("1. Use os nomes exatos das estatísticas (PPG, APG, etc.)")
+                st.write("2. Especifique a idade se quiser filtrar por idade")
+                st.write("3. Consulte as estatísticas disponíveis na barra lateral")
+        except Exception as e:
+            st.error("Ocorreu um erro ao processar sua pergunta.")
+            st.write("Dicas para melhorar sua consulta:")
+            show_column_info(df)
     else:
-        st.error("Por favor, coloque arquivos CSV na pasta 'files'.")
+        st.info("Por favor, insira sua consulta na caixa de texto acima.")
 
 # Estilo personalizado
 st.markdown("""
