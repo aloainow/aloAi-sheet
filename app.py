@@ -235,31 +235,38 @@ if df is not None:
                 message += f" (Total: {total_players} jogadores)"
                 st.write(message)
                 
-                # Usar um valor grande para items_per_page para mostrar todos
-                items_per_page = st.slider('Jogadores por página', 
-                                         min_value=10, 
-                                         max_value=max(100, total_players), 
-                                         value=min(50, total_players))
+                # Configurar a visualização dos dados
+                st.write("Use as barras de rolagem para ver todos os jogadores:")
                 
-                total_pages = (total_players + items_per_page - 1) // items_per_page
+                # Mostrar todos os dados com scroll
+                st.dataframe(
+                    result,
+                    use_container_width=True,
+                    height=500  # Altura fixa com scroll
+                )
                 
-                # Mostrar todos os resultados se houver apenas uma página
-                if total_pages <= 1:
-                    st.dataframe(result, use_container_width=True)
-                else:
-                    page = st.number_input('Página', min_value=1, max_value=total_pages, value=1)
-                    start_idx = (page - 1) * items_per_page
-                    end_idx = min(start_idx + items_per_page, total_players)
-                    
-                    st.write(f"Mostrando jogadores {start_idx + 1} a {end_idx} de {total_players}")
-                    st.dataframe(result.iloc[start_idx:end_idx], use_container_width=True)
+                # Adicionar estatísticas resumidas
+                st.write("### Resumo das estatísticas")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("Total de Jogadores", total_players)
+                
+                with col2:
+                    leagues = result['League'].nunique()
+                    st.metric("Ligas Diferentes", leagues)
+                
+                with col3:
+                    teams = result['Team Name'].nunique()
+                    st.metric("Times Diferentes", teams)
                 
                 # Adicionar opção de download
                 st.download_button(
                     label="📥 Download lista completa (CSV)",
                     data=result.to_csv(index=False).encode('utf-8'),
                     file_name='jogadores_completo.csv',
-                    mime='text/csv'
+                    mime='text/csv',
+                    help="Clique para baixar a lista completa em formato CSV"
                 )
             else:
                 st.warning("Não encontrei resultados para sua consulta. Tente reformular a pergunta.")
