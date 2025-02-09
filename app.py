@@ -7,6 +7,7 @@ import seaborn as sns
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from langchain.chat_models import ChatOpenAI
 from langchain.callbacks import StreamlitCallbackHandler
+from langchain.agents import AgentExecutor
 
 # Configuração da página
 st.set_page_config(page_title="BasketIA 🏀", page_icon="🏀", layout="wide")
@@ -42,29 +43,32 @@ def create_agent(df, openai_api_key, temperature=0.5):
             model_name="gpt-3.5-turbo"
         )
 
-        # Prompt que força o uso correto do python_repl_ast
-        prompt_prefix = """Você é um assistente que analisa dados usando Python. Importante:
+        # Prompt simplificado
+        prompt_prefix = """Você é um assistente que executa análises de dados. SEMPRE responda usando apenas código Python executável.
 
-1. Use APENAS o comando python_repl_ast para executar código
-2. O código deve ser executável e completo
-3. Para mostrar dados, use:
-   st.write(df) ou st.table(df)
-4. Sempre execute o código completo, não apenas partes
+Para cada pergunta:
+1. Use Python para analisar os dados
+2. Mostre resultados com st.write()
+3. Formate os números
+4. Não adicione explicações, apenas o código
 
-Exemplo de resposta correta:
-python_repl_ast: |
-    # Filtrar dados
-    result_df = df[df['Age'] == 22]
-    # Mostrar resultado
-    st.write(result_df)
+Exemplo:
+Action: python_repl_ast
+Action Input: df_filtered = df[df['Age'] == 22]
+st.write(df_filtered)"""
 
-NÃO use outros comandos além do python_repl_ast."""
-
-        return create_pandas_dataframe_agent(
+        agent = create_pandas_dataframe_agent(
             llm,
             df,
-            verbose=True,
-            prefix=prompt_prefix
+            prefix=prompt_prefix,
+            handle_parsing_errors=True
+        )
+        
+        return AgentExecutor.from_agent_and_tools(
+            agent=agent,
+            tools=agent.tools,
+            handle_parsing_errors=True,
+            verbose=True
         )
     except Exception as e:
         st.error(f"Erro ao criar agente: {str(e)}")
@@ -95,10 +99,7 @@ if df is not None:
             try:
                 with st.chat_message("assistant"):
                     st_callback = StreamlitCallbackHandler(st.container())
-                    response = agent.run(
-                        f"Execute este código Python usando python_repl_ast: {prompt}",
-                        callbacks=[st_callback]
-                    )
+                    response = agent.run(prompt, callbacks=[st_callback])
                     
                     if plt.get_fignums():
                         for fig_num in plt.get_fignums():
@@ -115,26 +116,3 @@ if df is not None:
         st.error("Chave da API OpenAI não encontrada nos secrets.")
 else:
     st.error("Coloque arquivos CSV na pasta 'files'.")
-
-# Estilo
-st.markdown("""
-<style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-.stTable {
-    width: 100%;
-    margin: 1rem 0;
-}
-.stTable th {
-    background-color: #f0f2f6;
-    font-weight: bold;
-    text-align: center;
-}
-.stTable td {
-    text-align: right;
-}
-.stTable td:first-child {
-    text-align: left;
-}
-</style>
-""", unsafe_allow_html=True)
