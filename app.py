@@ -16,7 +16,7 @@ from langchain.callbacks import StreamlitCallbackHandler
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import ChatOpenAI  # Changed from langchain_openai
 
 # Page configuration
 st.set_page_config(page_title="BasketIA 🏀", page_icon="🏀", layout="wide")
