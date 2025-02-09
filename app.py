@@ -27,6 +27,9 @@ def load_data():
         
         selected_file = files[0]
         df = pd.read_csv(os.path.join('files', selected_file))
+        
+        st.sidebar.write(f"Dataset: {selected_file}")
+        st.sidebar.write(f"Registros: {len(df)}")
         return df
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {str(e)}")
@@ -77,15 +80,40 @@ def create_agent(df):
 def process_query(agent, df, query):
     """Processa queries e retorna resultados"""
     try:
-        # Processar queries sobre idade
-        if "jogadores" in query.lower() and "anos" in query.lower():
-            # Extrair idade da query
-            age = [int(s) for s in query.split() if s.isdigit()][0]
+        # Processar top 10 ofensivo
+        if "top" in query.lower() and "ofensiv" in query.lower():
+            # Calcular métrica ofensiva
+            df['Métrica_Ofensiva'] = (
+                df['PPG'] * 0.4 +  # Pontos por jogo
+                df['APG'] * 0.3 +  # Assistências por jogo
+                df['FG%'] * 0.3    # Porcentagem de arremessos
+            )
             
-            # Filtrar dados
+            # Ordenar e pegar top 10
+            top_10 = df.nlargest(10, 'Métrica_Ofensiva')
+            
+            # Selecionar colunas para exibição
+            display_columns = [
+                'Player Name', 'Team Name', 'League',
+                'PPG', 'APG', 'FG%', '3P%', 'FT%',
+                'MPG', 'EFF', 'Métrica_Ofensiva'
+            ]
+            
+            # Formatar e mostrar tabela
+            result_df = top_10[display_columns].copy()
+            
+            # Arredondar valores numéricos
+            numeric_cols = result_df.select_dtypes(include=['float64', 'int64']).columns
+            result_df[numeric_cols] = result_df[numeric_cols].round(1)
+            
+            st.table(result_df)
+            return "Top 10 jogadores por métricas ofensivas."
+            
+        # Processar queries sobre idade
+        elif "jogadores" in query.lower() and "anos" in query.lower():
+            age = [int(s) for s in query.split() if s.isdigit()][0]
             filtered_df = df[df['Age'] == age]
             
-            # Mostrar resultados
             if not filtered_df.empty:
                 format_table(filtered_df)
                 return f"Mostrando jogadores com {age} anos e suas estatísticas."
@@ -153,6 +181,10 @@ st.markdown("""
     }
     .stTable td:first-child {
         text-align: left;
+    }
+    .metric-highlight {
+        font-weight: bold;
+        color: #1f77b4;
     }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
