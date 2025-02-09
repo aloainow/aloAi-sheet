@@ -26,95 +26,90 @@ def load_data():
         
         selected_file = files[0]
         df = pd.read_csv(os.path.join('files', selected_file))
-        
-        st.sidebar.write(f"Dataset: {selected_file}")
-        st.sidebar.write(f"Registros: {len(df)}")
         return df
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {str(e)}")
         return None
 
-def create_agent(df, openai_api_key, temperature=0.5):
+def format_table(df):
+    """Helper function to format tables consistently"""
+    try:
+        # Selecionar colunas padrão se disponíveis
+        default_columns = ['Player Name', 'Team Name', 'League', 'Age', 'Height', 'Pos']
+        available_columns = [col for col in default_columns if col in df.columns]
+        
+        if available_columns:
+            df = df[available_columns]
+        
+        # Mostrar a tabela
+        st.table(df)
+    except Exception as e:
+        st.error(f"Erro ao formatar tabela: {str(e)}")
+
+def create_agent(df):
     try:
         llm = ChatOpenAI(
-            temperature=temperature,
-            api_key=openai_api_key,
+            temperature=0.0,
+            api_key=st.secrets["OPENAI_API_KEY"],
             model_name="gpt-3.5-turbo"
         )
-
-        prompt_prefix = """Você é um assistente que analisa dados de basquete. Para qualquer consulta:
-
-1. SEMPRE use este formato de código:
-```python
-# Filtrar dados
-result_df = df[df['Age'] == 22]
-
-# Selecionar colunas relevantes
-result_df = result_df[['Player Name', 'Team Name', 'League', 'Age', 'Height', 'Pos']]
-
-# Mostrar em tabela formatada
-st.table(result_df)
-```
-
-2. SEMPRE use st.table() para mostrar resultados
-3. SEMPRE selecione apenas colunas relevantes
-4. SEMPRE execute o código completo, não apenas partes
-5. NÃO adicione explicações, apenas execute o código
-
-Lembre-se: Uma tabela bem formatada é melhor que muitos dados confusos."""
 
         return create_pandas_dataframe_agent(
             llm,
             df,
-            verbose=True,
-            prefix=prompt_prefix
+            verbose=True
         )
     except Exception as e:
         st.error(f"Erro ao criar agente: {str(e)}")
         return None
 
-# Inicialização do chat
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "Olá! Como posso ajudar com a análise dos dados?"}
-    ]
+def process_query(agent, query):
+    try:
+        if "jogadores" in query.lower() and "anos" in query.lower():
+            # Extrair idade da query
+            age = [int(s) for s in query.split() if s.isdigit()][0]
+            
+            # Filtrar dados
+            filtered_df = df[df['Age'] == age]
+            
+            # Mostrar resultados
+            format_table(filtered_df)
+            
+            return f"Mostrando jogadores com {age} anos."
+        else:
+            return agent.run(query)
+    except Exception as e:
+        st.error(f"Erro ao processar query: {str(e)}")
+        return "Desculpe, não consegui processar sua solicitação."
 
-# Exibição das mensagens
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Processamento principal
+# Carregar dados
 df = load_data()
 if df is not None:
-    if "OPENAI_API_KEY" in st.secrets:
-        agent = create_agent(df, st.secrets["OPENAI_API_KEY"], temperature)
-        
-        if prompt := st.chat_input("Faça uma pergunta sobre os dados..."):
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
+    agent = create_agent(df)
+    
+    # Interface do chat
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {"role": "assistant", "content": "Olá! Como posso ajudar com a análise dos dados?"}
+        ]
 
-            try:
-                with st.chat_message("assistant"):
-                    st_callback = StreamlitCallbackHandler(st.container())
-                    response = agent.run(
-                        f"Mostrar dados em uma tabela formatada: {prompt}",
-                        callbacks=[st_callback]
-                    )
-                    
-                    if plt.get_fignums():
-                        for fig_num in plt.get_fignums():
-                            fig = plt.figure(fig_num)
-                            st.pyplot(fig)
-                            plt.close(fig)
-                    
-                    st.session_state.messages.append({"role": "assistant", "content": response})
+    # Mostrar mensagens
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-            except Exception as e:
-                st.error(f"Erro na análise: {str(e)}")
-                st.error("Tente reformular sua pergunta.")
-    else:
-        st.error("Chave da API OpenAI não encontrada nos secrets.")
+    # Input do usuário
+    if prompt := st.chat_input("Faça uma pergunta sobre os dados..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Processar resposta
+        with st.chat_message("assistant"):
+            response = process_query(agent, prompt)
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            
+            if isinstance(response, str):
+                st.markdown(response)
 else:
     st.error("Coloque arquivos CSV na pasta 'files'.")
