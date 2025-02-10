@@ -4,6 +4,7 @@ import numpy as np
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+from datetime import datetime
 
 # Configuração da página
 st.set_page_config(page_title="BasketIA 🏀", page_icon="🏀", layout="wide")
@@ -129,6 +130,97 @@ def load_data():
         st.error(f"Erro ao carregar arquivo: {str(e)}")
         return None
 
+def process_text_query(df, query_text):
+    """
+    Processa consultas em texto livre e retorna os resultados filtrados
+    """
+    query_text = query_text.lower()
+    result = df.copy()
+    
+    try:
+        # Dicionário de estatísticas ofensivas combinadas
+        offensive_stats = ['PTS', 'MPTS', '3PTSC', 'ASS', 'MASS']
+        defensive_stats = ['TREB', 'MTREB', 'RB', 'MRB', 'T', 'MT', 'REBD']
+        
+        # Processar diferentes tipos de consultas
+        if "idade" in query_text or "anos" in query_text:
+            # Converter data de nascimento para idade
+            result['Idade'] = pd.to_datetime('today').year - pd.to_datetime(result['Data de Nascimento']).dt.year
+            
+            # Extrair número da consulta
+            import re
+            numbers = re.findall(r'\d+', query_text)
+            if numbers:
+                age = int(numbers[0])
+                if "maior" in query_text or "acima" in query_text:
+                    result = result[result['Idade'] > age]
+                elif "menor" in query_text or "abaixo" in query_text:
+                    result = result[result['Idade'] < age]
+                else:
+                    result = result[result['Idade'] == age]
+        
+        elif "ofensiv" in query_text:
+            # Calcular score ofensivo combinado
+            available_stats = [col for col in offensive_stats if col in result.columns]
+            if available_stats:
+                result['Score_Ofensivo'] = result[available_stats].mean(axis=1)
+                result = result.sort_values('Score_Ofensivo', ascending=False)
+        
+        elif "defensiv" in query_text:
+            # Calcular score defensivo combinado
+            available_stats = [col for col in defensive_stats if col in result.columns]
+            if available_stats:
+                result['Score_Defensivo'] = result[available_stats].mean(axis=1)
+                result = result.sort_values('Score_Defensivo', ascending=False)
+        
+        elif "top" in query_text or "melhores" in query_text:
+            # Extrair número para top N
+            import re
+            numbers = re.findall(r'\d+', query_text)
+            top_n = int(numbers[0]) if numbers else 5
+            
+            # Identificar estatística específica
+            if "pont" in query_text:
+                result = result.nlargest(top_n, 'MPTS')
+            elif "rebote" in query_text:
+                result = result.nlargest(top_n, 'MTREB')
+            elif "assist" in query_text:
+                result = result.nlargest(top_n, 'MASS')
+            elif "block" in query_text or "toco" in query_text:
+                result = result.nlargest(top_n, 'MT')
+            else:
+                # Score geral combinando principais estatísticas
+                main_stats = ['MPTS', 'MTREB', 'MASS']
+                available_stats = [col for col in main_stats if col in result.columns]
+                if available_stats:
+                    result['Score_Geral'] = result[available_stats].mean(axis=1)
+                    result = result.nlargest(top_n, 'Score_Geral')
+        
+        # Filtros por posição
+        elif "ala" in query_text or "pivô" in query_text or "armador" in query_text:
+            positions = []
+            if "ala" in query_text:
+                positions.extend(["Ala", "Ala-Pivô", "Ala-Armador"])
+            if "pivô" in query_text:
+                positions.extend(["Pivô", "Ala-Pivô"])
+            if "armador" in query_text:
+                positions.extend(["Armador", "Ala-Armador"])
+            result = result[result['Posição'].isin(positions)]
+        
+        # Filtro por nacionalidade
+        for col in result.columns:
+            if col == 'Nacionalidade' and any(country.lower() in query_text for country in result[col].unique()):
+                for country in result[col].unique():
+                    if country.lower() in query_text:
+                        result = result[result[col].str.lower() == country.lower()]
+                        break
+        
+        return result.copy()
+    
+    except Exception as e:
+        st.error(f"Erro ao processar consulta: {str(e)}")
+        return df.copy()
+
 def process_stats_query(df, stat_type=None):
     """Processa consulta de estatísticas adaptada para a Planilha Piloto"""
     try:
@@ -249,7 +341,72 @@ def create_comparison_chart(df, players, attribute):
         return fig
     except Exception as e:
         st.error(f"Erro ao criar gráfico de comparação: {str(e)}")
-        return None
+def text_query_section():
+    """Seção de consultas por texto livre"""
+    st.header("🔍 Consulta por Texto")
+    
+    # Carregar dados
+    df = load_data()
+    if df is None:
+        return
+    
+    # Campo de texto para consulta
+    query_text = st.text_input(
+        "Digite sua consulta em texto livre",
+        placeholder="Exemplo: 'top 5 jogadores em pontuação' ou 'jogadores com mais de 25 anos'"
+    )
+    
+    # Exemplos de consultas
+    with st.expander("📝 Exemplos de consultas"):
+        st.markdown("""
+        - Liste os top 5 jogadores em pontuação
+        - Mostre jogadores com 20 anos de idade
+        - Encontre os melhores jogadores em estatísticas ofensivas
+        - Liste os armadores com melhor média de assistências
+        - Mostre os jogadores brasileiros
+        - Top 10 em rebotes
+        - Melhores estatísticas defensivas
+        """)
+    
+    if query_text:
+        # Processar consulta
+        result = process_text_query(df, query_text)
+        
+        if result is not None and not result.empty:
+            total_results = len(result)
+            
+            # Limitar número de resultados mostrados
+            num_results = st.slider(
+                "Número de resultados a mostrar",
+                min_value=1,
+                max_value=total_results,
+                value=min(50, total_results)
+            )
+            
+            result_displayed = result.head(num_results)
+            
+            # Mostrar resultados
+            st.write(f"📊 Resultados encontrados: {total_results} jogadores")
+            
+            try:
+                st.dataframe(
+                    data=result_displayed,
+                    use_container_width=True,
+                    height=500
+                )
+            except Exception as e:
+                st.error(f"Erro ao exibir dados: {str(e)}")
+                st.write(result_displayed.to_html(index=False), unsafe_allow_html=True)
+            
+            # Opção de download
+            st.download_button(
+                label="📥 Download resultados (CSV)",
+                data=result.to_csv(index=False, encoding='utf-8').encode('utf-8'),
+                file_name='resultados_consulta.csv',
+                mime='text/csv'
+            )
+        else:
+            st.warning("Nenhum resultado encontrado para esta consulta.")
 
 def analytics_section():
     """Seção de análises e visualizações"""
@@ -324,8 +481,8 @@ def analytics_section():
             st.dataframe(summary.round(2), use_container_width=True)
 
 def queries_section():
-    """Seção de consultas com tratamento específico para a Planilha Piloto"""
-    st.header("🔍 Consultas")
+    """Seção de consultas por categoria"""
+    st.header("🔍 Consultas por Categoria")
     
     # Carregar dados
     df = load_data()
@@ -339,6 +496,7 @@ def queries_section():
         format_func=lambda x: x.title()
     )
     
+    # Converter seleção para chave do dicionário
     query_map = {
         "Todas": None,
         "Pontuação": "pontos",
@@ -356,19 +514,20 @@ def queries_section():
         total_players = len(result)
         
         # Adicionar slider para número de resultados
-        num_results = st.slider("Número de resultados a mostrar", 
-                              min_value=1,
-                              max_value=total_players,
-                              value=min(50, total_players))
+        num_results = st.slider(
+            "Número de resultados a mostrar",
+            min_value=1,
+            max_value=total_players,
+            value=min(50, total_players)
+        )
         
-# Mostrar resultados
+        # Mostrar resultados
         result_displayed = result.head(num_results)
         
         message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} jogadores)"
         st.write(message)
         
         try:
-            # Tentar exibir o dataframe
             st.dataframe(
                 data=result_displayed,
                 use_container_width=True,
@@ -376,7 +535,6 @@ def queries_section():
             )
         except Exception as e:
             st.error(f"Erro ao exibir dados: {str(e)}")
-            # Fallback para exibição HTML
             st.write(result_displayed.to_html(index=False), unsafe_allow_html=True)
         
         # Estatísticas resumidas
@@ -407,12 +565,15 @@ def main():
     st.title("BasketIA 🏀")
     
     # Criar tabs principais
-    tab1, tab2 = st.tabs(["Consultas", "Análise de Evolução"])
+    tab1, tab2, tab3 = st.tabs(["Consulta por Texto", "Consultas por Categoria", "Análise de Evolução"])
     
     with tab1:
-        queries_section()
+        text_query_section()
     
     with tab2:
+        queries_section()
+    
+    with tab3:
         analytics_section()
 
 if __name__ == "__main__":
