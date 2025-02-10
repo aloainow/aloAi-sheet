@@ -12,9 +12,10 @@ st.set_page_config(page_title="CBB_IA 🏀", page_icon="🏀", layout="wide")
 
 # Barra lateral com informações das colunas
 with st.sidebar:
-    st.image("Logo CBB png.png", width=150)
-    st.header("Configurações e Ajuda 📊")
-    
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.image("Logo CBB png.png", width=150, use_column_width=True)
+    st.header("Configurações e Ajuda 📊")    
     # Expandable para mostrar estatísticas disponíveis
     with st.expander("📈 Estatísticas Disponíveis"):
         st.markdown("""
