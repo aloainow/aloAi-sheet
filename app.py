@@ -1,6 +1,4 @@
 # ================ PARTE 1 - IMPORTAÇÕES E CONFIGURAÇÕES ================
-# Coloque este código no início do arquivo app.py
-
 import os
 import pandas as pd
 import numpy as np
@@ -62,6 +60,16 @@ with st.sidebar:
         - **MERR**: Média de erros
         """)
 
+# Função centralizada para seleção de gênero
+def get_gender_selection(key_suffix):
+    """Função centralizada para seleção de gênero"""
+    return st.radio(
+        "Selecione o Gênero",
+        ["Masculino", "Feminino"],
+        horizontal=True,
+        key=f"gender_select_{key_suffix}"
+    )
+
 def load_data():
     """Carrega dados do CSV com tratamento específico para a Planilha Piloto"""
     try:
@@ -75,7 +83,7 @@ def load_data():
             'Posição': str,
             'Competição': str,
             'Equipe': str,
-            'Gênero': str,  # Adicionada coluna de gênero
+            'Gênero': str,
             'J': 'Int64',
             'Mins': str,
             'MMIN': 'float64',
@@ -120,7 +128,7 @@ def load_data():
         
         # Se não existir coluna de gênero, criar uma
         if 'Gênero' not in df.columns:
-            df['Gênero'] = 'Masculino'  # ou definir com base em alguma lógica específica
+            df['Gênero'] = 'Masculino'
         
         # Remover linhas onde Nome está vazio
         df = df[df['Nome'].notna()]
@@ -138,8 +146,7 @@ def load_data():
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {str(e)}")
         return None
-        # ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
-# Coloque este código depois da Parte 1
+# ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
 
 def process_text_query(df, query_text):
     """Processa consultas em texto livre"""
@@ -265,6 +272,7 @@ def process_stats_query(df, gender, stat_types_selected=None, selected_stats=Non
     except Exception as e:
         st.error(f"Erro ao processar estatísticas: {str(e)}")
         return pd.DataFrame()
+# ================ PARTE 3 - FUNÇÕES DE VISUALIZAÇÃO E ANÁLISE ================
 
 def create_evolution_chart(df, player_name, attributes):
     """Cria gráfico de evolução dos atributos selecionados para um jogador"""
@@ -312,7 +320,6 @@ def create_evolution_chart(df, player_name, attributes):
         return None
 
 def create_comparison_chart(df, players, attribute):
-   def create_comparison_chart(df, players, attribute):
     """Cria gráfico de comparação de um atributo entre diferentes jogadores"""
     try:
         # Filtrar dados dos jogadores selecionados
@@ -350,6 +357,12 @@ def text_query_section():
     if df is None:
         return
     
+    # Usar chave única para seleção de gênero nesta seção
+    gender = get_gender_selection("text_query")
+    
+    # Filtrar dados por gênero antes de processar
+    df = df[df['Gênero'] == gender]
+    
     # Campo de texto para consulta
     query_text = st.text_input(
         "Digite sua consulta em texto livre",
@@ -380,7 +393,8 @@ def text_query_section():
                 "Número de resultados a mostrar",
                 min_value=1,
                 max_value=total_results,
-                value=min(50, total_results)
+                value=min(50, total_results),
+                key="text_query_slider"
             )
             
             result_displayed = result.head(num_results)
@@ -403,10 +417,10 @@ def text_query_section():
                 label="📥 Download resultados (CSV)",
                 data=result.to_csv(index=False, encoding='utf-8').encode('utf-8'),
                 file_name='resultados_consulta.csv',
-                mime='text/csv'
+                mime='text/csv',
+                key="text_query_download"
             )
-        else:
-            st.warning("Nenhum resultado encontrado para esta consulta.")
+# ================ PARTE 4 - SEÇÕES PRINCIPAIS E MAIN ================
 
 def analytics_section():
     """Seção de análises e visualizações"""
@@ -417,12 +431,8 @@ def analytics_section():
     if df is None:
         return
     
-    # Adicionar seleção de gênero
-    gender = st.radio(
-        "Selecione o Gênero",
-        ["Masculino", "Feminino"],
-        horizontal=True
-    )
+    # Usar chave única para seleção de gênero nesta seção
+    gender = get_gender_selection("analytics")
     
     # Filtrar dados por gênero
     df = df[df['Gênero'] == gender]
@@ -437,7 +447,8 @@ def analytics_section():
         player_names = sorted(df['Nome'].unique())
         selected_player = st.selectbox(
             "Selecione um jogador",
-            player_names
+            player_names,
+            key="player_select_evolution"
         )
         
         # Selecionar atributos para visualizar
@@ -449,7 +460,8 @@ def analytics_section():
         selected_attributes = st.multiselect(
             "Selecione os atributos para visualizar",
             available_attributes,
-            default=['MPTS', 'MASS', 'MRB']
+            default=['MPTS', 'MASS', 'MRB'],
+            key="attributes_evolution"
         )
         
         if selected_attributes:
@@ -469,13 +481,15 @@ def analytics_section():
         selected_players = st.multiselect(
             "Selecione os jogadores para comparar",
             player_names,
-            default=player_names[:2] if len(player_names) >= 2 else player_names
+            default=player_names[:2] if len(player_names) >= 2 else player_names,
+            key="players_comparison"
         )
         
         # Selecionar atributo para comparação
         selected_attribute = st.selectbox(
             "Selecione o atributo para comparar",
-            available_attributes
+            available_attributes,
+            key="attribute_comparison"
         )
         
         if selected_players and selected_attribute:
@@ -499,12 +513,8 @@ def queries_section():
     if df is None:
         return
     
-    # Primeiro, selecionar o gênero
-    gender = st.radio(
-        "Selecione o Gênero",
-        ["Masculino", "Feminino"],
-        horizontal=True
-    )
+    # Usar chave única para seleção de gênero nesta seção
+    gender = get_gender_selection("queries")
     
     # Criar duas colunas
     col1, col2 = st.columns(2)
@@ -519,7 +529,8 @@ def queries_section():
         selected_categories = st.multiselect(
             "Selecione as Categorias de Estatísticas",
             stat_categories,
-            default=["Pontuação"]
+            default=["Pontuação"],
+            key="stat_categories"
         )
     
     with col2:
@@ -570,7 +581,8 @@ def queries_section():
         selected_stats = st.multiselect(
             "Selecione Estatísticas Específicas (opcional)",
             sorted(all_stats_flat),
-            format_func=lambda x: f"{x} - {stats_descriptions.get(x, x)}"
+            format_func=lambda x: f"{x} - {stats_descriptions.get(x, x)}",
+            key="specific_stats"
         )
     
     # Converter categorias selecionadas para o formato do dicionário
@@ -598,7 +610,8 @@ def queries_section():
             "Número de resultados a mostrar",
             min_value=1,
             max_value=total_players,
-            value=min(50, total_players)
+            value=min(50, total_players),
+            key="query_results_slider"
         )
         
         # Mostrar resultados
@@ -619,6 +632,9 @@ def queries_section():
         
         # Estatísticas resumidas
         st.write("### Resumo")
+# Continuação da PARTE 4 - Final de queries_section() e main()
+
+        # Continuação do queries_section()
         col1, col2, col3 = st.columns(3)
         
         with col1:
@@ -638,10 +654,12 @@ def queries_section():
             data=result.to_csv(index=False, encoding='utf-8').encode('utf-8'),
             file_name='jogadores_estatisticas.csv',
             mime='text/csv',
-            help="Clique para baixar a lista completa em formato CSV"
+            help="Clique para baixar a lista completa em formato CSV",
+            key="query_download"
         )
 
 def main():
+    """Função principal da aplicação"""
     st.title("BasketIA 🏀")
     
     # Criar tabs principais
@@ -658,3 +676,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
