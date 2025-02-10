@@ -361,7 +361,59 @@ def queries_section():
                               max_value=total_players,
                               value=min(50, total_players))
         
-        # Mostrar resultados
+# Mostrar resultados
         result_displayed = result.head(num_results)
         
-        message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} jog
+        message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} jogadores)"
+        st.write(message)
+        
+        try:
+            # Tentar exibir o dataframe
+            st.dataframe(
+                data=result_displayed,
+                use_container_width=True,
+                height=500
+            )
+        except Exception as e:
+            st.error(f"Erro ao exibir dados: {str(e)}")
+            # Fallback para exibição HTML
+            st.write(result_displayed.to_html(index=False), unsafe_allow_html=True)
+        
+        # Estatísticas resumidas
+        st.write("### Resumo")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total de Jogadores", total_players)
+        
+        with col2:
+            competicoes = result['Competição'].nunique()
+            st.metric("Competições", competicoes)
+        
+        with col3:
+            equipes = result['Equipe'].nunique()
+            st.metric("Equipes", equipes)
+        
+        # Opção de download
+        st.download_button(
+            label="📥 Download lista completa (CSV)",
+            data=result.to_csv(index=False, encoding='utf-8').encode('utf-8'),
+            file_name='jogadores_estatisticas.csv',
+            mime='text/csv',
+            help="Clique para baixar a lista completa em formato CSV"
+        )
+
+def main():
+    st.title("BasketIA 🏀")
+    
+    # Criar tabs principais
+    tab1, tab2 = st.tabs(["Consultas", "Análise de Evolução"])
+    
+    with tab1:
+        queries_section()
+    
+    with tab2:
+        analytics_section()
+
+if __name__ == "__main__":
+    main()
