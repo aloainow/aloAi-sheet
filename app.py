@@ -1,62 +1,59 @@
 import os
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-from langchain.chat_models import ChatOpenAI
-from langchain.callbacks import StreamlitCallbackHandler
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Configuração da página
 st.set_page_config(page_title="BasketIA 🏀", page_icon="🏀", layout="wide")
-st.title("BasketIA 🏀")
 
 # Barra lateral com informações das colunas
 with st.sidebar:
     st.header("Configurações e Ajuda 📊")
-    temperature = st.slider("Temperatura", 0.0, 1.0, 0.5, 0.1)
     
     # Expandable para mostrar estatísticas disponíveis
     with st.expander("📈 Estatísticas Disponíveis"):
         st.markdown("""
         ### Informações do Jogador
-        - **Player Name**: Nome do jogador
-        - **Team Name**: Nome do time
-        - **League**: Liga
-        - **Nationality**: Nacionalidade
-        - **Country**: País
-        - **Age**: Idade
-        - **Height**: Altura
-        - **Pos**: Posição
-        - **GP**: Jogos disputados
-        - **TYPE**: Tipo de jogador
+        - **Nome**: Nome do jogador
+        - **ID**: Identificação
+        - **Data de Nascimento**: Data de nascimento do jogador
+        - **Altura**: Altura do jogador
+        - **Nacionalidade**: País de origem
+        - **Posição**: Posição em quadra
+        - **Competição**: Liga/Campeonato
+        - **Equipe**: Time atual
         
-        ### Estatísticas Principais
-        - **EFF**: Eficiência
-        - **MPG**: Minutos por jogo
-        - **PPG**: Pontos por jogo
-        - **RPG**: Rebotes por jogo
-        - **APG**: Assistências por jogo
-        - **BPG**: Bloqueios por jogo
-        - **SPG**: Roubos de bola por jogo
+        ### Estatísticas por Jogo
+        - **J**: Jogos disputados
+        - **Mins**: Minutos totais
+        - **MMIN**: Média de minutos por jogo
+        - **PTS**: Pontos totais
+        - **MPTS**: Média de pontos por jogo
+        - **TREB**: Total de rebotes
+        - **MTREB**: Média de rebotes por jogo
+        - **3PTSC**: Arremessos de 3 pontos convertidos
+        - **ASS**: Total de assistências
+        - **MASS**: Média de assistências por jogo
         
-        ### Estatísticas Detalhadas
-        - **ORB**: Rebotes ofensivos
-        - **DRB**: Rebotes defensivos
-        - **PF**: Faltas pessoais
-        - **TO**: Turnovers (perdas de bola)
+        ### Estatísticas Defensivas/Ofensivas
+        - **RB**: Rebotes
+        - **MRB**: Média de rebotes
+        - **T**: Tocos (bloqueios)
+        - **MT**: Média de tocos
+        - **REBD**: Rebotes defensivos
+        - **REBO**: Rebotes ofensivos
         
-        ### Arremessos
-        - **FTA**: Tentativas de lance livre
-        - **FTM**: Lances livres convertidos
-        - **FT%**: Percentual de acerto em lances livres
-        - **2PA**: Tentativas de 2 pontos
-        - **2PM**: Arremessos de 2 pontos convertidos
-        - **2P%**: Percentual de acerto em arremessos de 2 pontos
-        - **3PA**: Tentativas de 3 pontos
-        - **3PM**: Arremessos de 3 pontos convertidos
-        - **3P%**: Percentual de acerto em arremessos de 3 pontos
+        ### Outras Estatísticas
+        - **LLT**: Lances livres tentados
+        - **LLC**: Lances livres convertidos
+        - **AT**: Arremessos tentados
+        - **FR**: Faltas recebidas
+        - **FP**: Faltas cometidas
+        - **POP**: Posse de bola perdida
+        - **MPOP**: Média de posse de bola perdida
+        - **ERR**: Erros
+        - **MERR**: Média de erros
         """)
 
 def load_data():
@@ -70,8 +67,14 @@ def load_data():
         selected_file = files[0]
         df = pd.read_csv(os.path.join('files', selected_file))
         
+        # Remover linhas onde Nome está vazio (totais)
+        df = df[df['Nome'].notna()]
+        
         # Converter colunas numéricas
-        numeric_columns = ['Age', 'PPG', 'APG', '2P%', '3P%', 'EFF', 'MPG', 'RPG', 'SPG', 'BPG']
+        numeric_columns = ['J', 'MMIN', 'PTS', 'MPTS', 'TREB', 'MTREB', '3PTSC', 
+                         'ASS', 'MASS', 'RB', 'MRB', 'T', 'MT', 'LLT', 'LLC',
+                         'AT', 'FR', 'FP', 'POP', 'MPOP', 'REBD', 'REBO', 'ERR', 'MERR']
+        
         for col in numeric_columns:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -81,194 +84,265 @@ def load_data():
         st.error(f"Erro ao carregar arquivo: {str(e)}")
         return None
 
-def show_column_info(df):
-    """Mostra informações sobre as colunas disponíveis"""
-    st.write("### Colunas Disponíveis")
-    
-    # Agrupar colunas por categoria
-    categories = {
-        "Informações Básicas": ["Player Name", "Team Name", "League", "Nationality", "Country", "Age", "Height", "Pos", "TYPE"],
-        "Estatísticas por Jogo": ["PPG", "APG", "RPG", "BPG", "SPG", "MPG"],
-        "Percentuais": ["2P%", "3P%", "FT%"],
-        "Outras Estatísticas": ["EFF", "ORB", "DRB", "PF", "TO"]
-    }
-    
-    for category, cols in categories.items():
-        st.write(f"**{category}:**")
-        available_cols = [col for col in cols if col in df.columns]
-        st.write(", ".join(available_cols))
-
-def process_stats_query(df, age=None, stat_column=None, height=None, multiple_stats=False):
-    """Processa consulta de estatísticas com múltiplos critérios"""
+def process_stats_query(df, stat_type=None):
+    """Processa consulta de estatísticas"""
     try:
-        # Filtrar por idade se especificado
-        if age is not None:
-            df = df[df['Age'] == age].copy()
+        # Colunas base sempre mostradas
+        base_columns = ['Nome', 'Equipe', 'Competição', 'Posição', 'Nacionalidade']
+        
+        # Dicionário de tipos de estatísticas
+        stat_types = {
+            'pontos': ['PTS', 'MPTS', '3PTSC', 'LLT', 'LLC'],
+            'rebotes': ['TREB', 'MTREB', 'REBD', 'REBO', 'RB', 'MRB'],
+            'assistencias': ['ASS', 'MASS'],
+            'defesa': ['T', 'MT', 'REBD'],
+            'geral': ['J', 'Mins', 'MMIN'],
+            'erros': ['POP', 'MPOP', 'ERR', 'MERR']
+        }
+        
+        if stat_type and stat_type in stat_types:
+            # Mostrar estatísticas específicas
+            columns = base_columns + stat_types[stat_type]
+            result = df[columns].copy()
+            
+            # Ordenar baseado na principal estatística do tipo
+            main_stat = stat_types[stat_type][0]
+            result = result.sort_values(by=main_stat, ascending=False)
         else:
-            df = df.copy()
-
-        # Se são múltiplas estatísticas específicas (EFF, PPG, APG)
-        if multiple_stats:
-            # Normalizar cada estatística para ter peso igual
-            df['EFF_norm'] = (df['EFF'] - df['EFF'].min()) / (df['EFF'].max() - df['EFF'].min())
-            df['PPG_norm'] = (df['PPG'] - df['PPG'].min()) / (df['PPG'].max() - df['PPG'].min())
-            df['APG_norm'] = (df['APG'] - df['APG'].min()) / (df['APG'].max() - df['APG'].min())
+            # Mostrar todas as estatísticas disponíveis
+            all_stats = []
+            for stats in stat_types.values():
+                all_stats.extend(stats)
             
-            # Calcular pontuação combinada
-            df['Combined_Score'] = (df['EFF_norm'] + df['PPG_norm'] + df['APG_norm']) / 3
+            columns = base_columns + all_stats
+            result = df[columns].copy()
             
-            columns = ['Player Name', 'Team Name', 'League', 'Age', 'EFF', 'PPG', 'APG', 'Combined_Score']
-            result = df[columns].sort_values(by='Combined_Score', ascending=False).round(2)
-            
-        # Se uma estatística específica foi solicitada
-        elif stat_column and stat_column in df.columns:
-            columns = ['Player Name', 'Team Name', 'League', 'Age', stat_column]
-            result = df[columns].sort_values(by=stat_column, ascending=False).round(2)
-        else:
-            # Calcular métrica ofensiva padrão
-            df['Metrica_Ofensiva'] = (
-                df['PPG'] * 0.4 + 
-                df['APG'] * 0.3 + 
-                df['2P%'] * 0.15 + 
-                df['3P%'] * 0.15
-            )
-            columns = ['Player Name', 'Team Name', 'League', 'Age', 
-                       'PPG', 'APG', '2P%', '3P%', 'Metrica_Ofensiva']
-            result = df[columns].sort_values(by='Metrica_Ofensiva', ascending=False).round(2)
+            # Ordenar por pontos por padrão
+            result = result.sort_values(by='MPTS', ascending=False)
+        
+        # Arredondar valores numéricos
+        numeric_columns = result.select_dtypes(include=['float64', 'float32']).columns
+        result[numeric_columns] = result[numeric_columns].round(2)
         
         return result
+        
     except Exception as e:
         st.error(f"Erro ao processar estatísticas: {str(e)}")
         return None
 
-def main():
-    # Carrega os dados
+def create_evolution_chart(df, player_name, attributes):
+    """
+    Cria gráfico de evolução dos atributos selecionados para um jogador
+    """
+    # Filtrar dados do jogador
+    player_data = df[df['Nome'] == player_name]
+    
+    # Criar figura
+    fig = go.Figure()
+    
+    # Adicionar uma linha para cada atributo
+    for attr in attributes:
+        fig.add_trace(
+            go.Scatter(
+                x=player_data['Competição'],
+                y=player_data[attr],
+                name=attr,
+                mode='lines+markers',
+                hovertemplate=
+                "<b>%{x}</b><br>" +
+                f"{attr}: %{{y:.2f}}<br>" +
+                "<extra></extra>"
+            )
+        )
+    
+    # Atualizar layout
+    fig.update_layout(
+        title=f'Evolução de {player_name}',
+        xaxis_title='Competição',
+        yaxis_title='Valor',
+        hovermode='x unified',
+        showlegend=True,
+        template='plotly_white'
+    )
+    
+    return fig
+
+def create_comparison_chart(df, players, attribute):
+    """
+    Cria gráfico de comparação de um atributo entre diferentes jogadores
+    """
+    # Filtrar dados dos jogadores selecionados
+    comparison_data = df[df['Nome'].isin(players)]
+    
+    fig = px.bar(
+        comparison_data,
+        x='Nome',
+        y=attribute,
+        color='Competição',
+        barmode='group',
+        title=f'Comparação de {attribute}',
+        labels={
+            'Nome': 'Jogador',
+            attribute: 'Valor'
+        }
+    )
+    
+    return fig
+
+def analytics_section():
+    """Seção de análises e visualizações"""
+    st.header("📊 Análise de Evolução")
+    
+    # Carregar dados
     df = load_data()
     if df is None:
-        st.error("Nenhum arquivo CSV encontrado na pasta 'files'.")
         return
-
-    # Caixa de entrada para consulta do usuário
-    user_input = st.text_input("Digite sua consulta:")
-    num_results = st.slider("Número de resultados a mostrar", min_value=1, max_value=50, value=10)
     
-    if user_input:
-        try:
-            stat_keywords = {
-                'PPG': ['ppg', 'pontos por jogo', 'pontos'],
-                'APG': ['apg', 'assistências', 'assistencias'],
-                'RPG': ['rpg', 'rebotes'],
-                '2P%': ['2p%', 'field goal', 'arremessos de 2'],
-                '3P%': ['3p%', 'three point', 'arremessos de 3'],
-                'EFF': ['eff', 'eficiência', 'eficiencia']
-            }
+    # Criar tabs para diferentes tipos de análise
+    tab1, tab2 = st.tabs(["Evolução Individual", "Comparação entre Jogadores"])
+    
+    with tab1:
+        st.subheader("Evolução Individual do Jogador")
+        
+        # Selecionar jogador
+        player_names = sorted(df['Nome'].unique())
+        selected_player = st.selectbox(
+            "Selecione um jogador",
+            player_names
+        )
+        
+        # Selecionar atributos para visualizar
+        available_attributes = [
+            'MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR',
+            'PTS', 'TREB', 'ASS', 'RB', 'T', '3PTSC'
+        ]
+        
+        selected_attributes = st.multiselect(
+            "Selecione os atributos para visualizar",
+            available_attributes,
+            default=['MPTS', 'MASS', 'MRB']
+        )
+        
+        if selected_attributes:
+            chart = create_evolution_chart(df, selected_player, selected_attributes)
+            st.plotly_chart(chart, use_container_width=True)
             
-            prompt_lower = user_input.lower()
+            # Mostrar tabela com dados completos
+            st.subheader("Dados Detalhados")
+            player_data = df[df['Nome'] == selected_player]
+            st.dataframe(player_data, use_container_width=True)
+    
+    with tab2:
+        st.subheader("Comparação entre Jogadores")
+        
+        # Selecionar múltiplos jogadores
+        selected_players = st.multiselect(
+            "Selecione os jogadores para comparar",
+            player_names,
+            default=player_names[:2] if len(player_names) >= 2 else player_names
+        )
+        
+        # Selecionar atributo para comparação
+        selected_attribute = st.selectbox(
+            "Selecione o atributo para comparar",
+            available_attributes
+        )
+        
+        if selected_players and selected_attribute:
+            chart = create_comparison_chart(df, selected_players, selected_attribute)
+            st.plotly_chart(chart, use_container_width=True)
             
-            # Verificar se a consulta é para múltiplas estatísticas (EFF, PPG e APG)
-            multiple_stats = ('eff' in prompt_lower and 'ppg' in prompt_lower and 'apg' in prompt_lower)
-            
-            # Verificar idade (caso a consulta mencione "age" ou "anos")
-            idade = None
-            if "age" in prompt_lower or "anos" in prompt_lower:
-                try:
-                    idade = int(''.join(filter(str.isdigit, user_input)))
-                except ValueError:
-                    pass
+            # Mostrar estatísticas resumidas
+            st.subheader("Estatísticas Resumidas")
+            comparison_data = df[df['Nome'].isin(selected_players)]
+            summary = comparison_data.groupby('Nome')[selected_attribute].agg(['mean', 'min', 'max'])
+            summary.columns = ['Média', 'Mínimo', 'Máximo']
+            st.dataframe(summary.round(2), use_container_width=True)
 
-            # Verificar se há uma estatística específica na consulta (quando não for múltipla)
-            stat_column = None
-            if not multiple_stats:
-                for col, keywords in stat_keywords.items():
-                    if any(keyword in prompt_lower for keyword in keywords):
-                        stat_column = col
-                        break
+def queries_section():
+    """Seção de consultas"""
+    st.header("🔍 Consultas")
+    
+    # Carregar dados
+    df = load_data()
+    if df is None:
+        return
+        
+    # Opções de consulta
+    query_type = st.selectbox(
+        "Tipo de estatística",
+        ["Todas", "Pontuação", "Rebotes", "Assistências", "Defesa", "Geral", "Erros"],
+        format_func=lambda x: x.title()
+    )
+    
+    # Converter seleção para chave do dicionário
+    query_map = {
+        "Todas": None,
+        "Pontuação": "pontos",
+        "Rebotes": "rebotes",
+        "Assistências": "assistencias",
+        "Defesa": "defesa",
+        "Geral": "geral",
+        "Erros": "erros"
+    }
+    
+    # Processar consulta
+    result = process_stats_query(df, query_map[query_type])
+    
+    if result is not None and not result.empty:
+        total_players = len(result)
+        
+        # Adicionar slider para número de resultados
+        num_results = st.slider("Número de resultados a mostrar", 10, total_players, min(50, total_players))
+        
+        # Mostrar resultados
+        result_displayed = result.head(num_results)
+        
+        message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} jogadores)"
+        st.write(message)
+        
+        # Mostrar dados com scroll
+        st.dataframe(
+            result_displayed,
+            use_container_width=True,
+            height=500
+        )
+        
+        # Estatísticas resumidas
+        st.write("### Resumo")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total de Jogadores", total_players)
+        
+        with col2:
+            competicoes = result['Competição'].nunique()
+            st.metric("Competições", competicoes)
+        
+        with col3:
+            equipes = result['Equipe'].nunique()
+            st.metric("Equipes", equipes)
+        
+        # Opção de download
+        st.download_button(
+            label="📥 Download lista completa (CSV)",
+            data=result.to_csv(index=False).encode('utf-8'),
+            file_name='jogadores_estatisticas.csv',
+            mime='text/csv',
+            help="Clique para baixar a lista completa em formato CSV"
+        )
 
-            # Processar a consulta
-            result = process_stats_query(
-                df, 
-                age=idade, 
-                stat_column=stat_column,
-                height=None,
-                multiple_stats=multiple_stats
-            )
-            
-            if result is not None and not result.empty:
-                total_players = len(result)
-                
-                # Exibir os resultados limitados pelo slider, se necessário
-                result_displayed = result.head(num_results) if num_results < len(result) else result
-                
-                message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} jogadores)"
-                st.write(message)
-                
-                # Exibir os dados com scroll
-                st.dataframe(
-                    result_displayed,
-                    use_container_width=True,
-                    height=500  # Altura fixa para permitir scroll
-                )
-                
-                # Estatísticas resumidas
-                st.write("### Resumo das estatísticas")
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.metric("Total de Jogadores", total_players)
-                
-                with col2:
-                    leagues = result['League'].nunique()
-                    st.metric("Ligas Diferentes", leagues)
-                
-                with col3:
-                    teams = result['Team Name'].nunique()
-                    st.metric("Times Diferentes", teams)
-                
-                # Botão para download dos resultados
-                st.download_button(
-                    label="📥 Download lista completa (CSV)",
-                    data=result.to_csv(index=False).encode('utf-8'),
-                    file_name='jogadores_completo.csv',
-                    mime='text/csv',
-                    help="Clique para baixar a lista completa em formato CSV"
-                )
-            else:
-                st.warning("Não encontrei resultados para sua consulta. Tente reformular a pergunta.")
-                st.write("Sugestões:")
-                st.write("1. Use os nomes exatos das estatísticas (PPG, APG, etc.)")
-                st.write("2. Especifique a idade se quiser filtrar por idade")
-                st.write("3. Consulte as estatísticas disponíveis na barra lateral")
-        except Exception as e:
-            st.error("Ocorreu um erro ao processar sua pergunta.")
-            st.write("Dicas para melhorar sua consulta:")
-            show_column_info(df)
-    else:
-        st.info("Por favor, insira sua consulta na caixa de texto acima.")
-
-# Estilo personalizado
-st.markdown("""
-<style>
-    .stTable {
-        width: 100%;
-        margin: 1rem 0;
-    }
-    .stTable th {
-        background-color: #f0f2f6;
-        font-weight: bold;
-        text-align: center;
-        padding: 0.5rem;
-    }
-    .stTable td {
-        text-align: right;
-        padding: 0.5rem;
-    }
-    .stTable td:first-child {
-        text-align: left;
-    }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
+def main():
+    st.title("BasketIA 🏀")
+    
+    # Criar tabs principais
+    tab1, tab2 = st.tabs(["Consultas", "Análise de Evolução"])
+    
+    with tab1:
+        queries_section()
+    
+    with tab2:
+        analytics_section()
 
 if __name__ == "__main__":
     main()
