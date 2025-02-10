@@ -12,7 +12,7 @@ st.set_page_config(page_title="CBB_IA 🏀", page_icon="🏀", layout="wide")
 
 # Barra lateral com informações das colunas
 with st.sidebar:
-    st.image("white_logo.png", width=150)
+    st.image("CBB-2.gif", width=150)
     st.header("Configurações e Ajuda 📊")
     
     # Expandable para mostrar estatísticas disponíveis
