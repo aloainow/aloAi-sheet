@@ -12,6 +12,7 @@ st.set_page_config(page_title="CBB_IA 🏀", page_icon="🏀", layout="wide")
 
 # Barra lateral com informações das colunas
 with st.sidebar:
+    st.image("white_logo.png", width=150)
     st.header("Configurações e Ajuda 📊")
     
     # Expandable para mostrar estatísticas disponíveis
@@ -517,7 +518,7 @@ def queries_section():
     gender = get_gender_selection("queries")
     
     # Criar duas colunas
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([0.2, 0.8])
     
     with col1:
         # Seleção de categorias de estatísticas
@@ -660,7 +661,7 @@ def queries_section():
 
 def main():
     """Função principal da aplicação"""
-    st.title("BasketIA 🏀")
+    st.title("CBB_IA 🏀")
     
     # Criar tabs principais
     tab1, tab2, tab3 = st.tabs(["Consulta por Texto", "Consultas por Categoria", "Análise de Evolução"])
