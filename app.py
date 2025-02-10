@@ -85,30 +85,30 @@ def load_data():
             'Competição': str,
             'Equipe': str,
             'Gênero': str,
-            'J': 'Int64',
+            'J': pd.Int64Dtype(),  # Usando Int64Dtype para permitir valores nulos
             'Mins': str,
             'MMIN': 'float64',
-            'PTS': 'Int64',
+            'PTS': pd.Int64Dtype(),
             'MPTS': 'float64',
-            'TREB': 'Int64',
+            'TREB': pd.Int64Dtype(),
             'MTREB': 'float64',
-            '3PTSC': 'Int64',
-            'ASS': 'Int64',
+            '3PTSC': pd.Int64Dtype(),
+            'ASS': pd.Int64Dtype(),
             'MASS': 'float64',
-            'RB': 'Int64',
+            'RB': pd.Int64Dtype(),
             'MRB': 'float64',
-            'T': 'Int64',
+            'T': pd.Int64Dtype(),
             'MT': 'float64',
-            'LLT': 'Int64',
-            'LLC': 'Int64',
-            'AT': 'Int64',
-            'FR': 'Int64',
-            'FP': 'Int64',
-            'POP': 'Int64',
-            'MPOP': 'Int64',
-            'REBD': 'Int64',
-            'REBO': 'Int64',
-            'ERR': 'Int64',
+            'LLT': pd.Int64Dtype(),
+            'LLC': pd.Int64Dtype(),
+            'AT': pd.Int64Dtype(),
+            'FR': pd.Int64Dtype(),
+            'FP': pd.Int64Dtype(),
+            'POP': pd.Int64Dtype(),
+            'MPOP': pd.Int64Dtype(),
+            'REBD': pd.Int64Dtype(),
+            'REBO': pd.Int64Dtype(),
+            'ERR': pd.Int64Dtype(),
             'MERR': 'float64'
         }
 
@@ -119,11 +119,11 @@ def load_data():
         
         selected_file = files[0]
         
-        # Ler o CSV com os tipos de dados especificados
+        # Ler o CSV com os tipos de dados especificados e tratamento de valores ausentes
         df = pd.read_csv(
             os.path.join('files', selected_file),
             dtype=dtype_dict,
-            na_values=['', 'NA', 'nan', 'NaN'],
+            na_values=['', 'NA', 'nan', 'NaN', '#N/A', '#N/D', 'NULL'],
             encoding='utf-8'
         )
         
@@ -131,10 +131,11 @@ def load_data():
         if 'Gênero' not in df.columns or df['Gênero'].isna().any():
             # Se não existir ou tiver valores nulos, inferir baseado na competição
             df['Gênero'] = df['Competição'].apply(
-                lambda x: 'Feminino' if 'Fem' in x else (
-                    'Masculino' if 'Masc' in x else 'Não Especificado'
+                lambda x: 'Feminino' if isinstance(x, str) and 'Fem' in x else (
+                    'Masculino' if isinstance(x, str) and 'Masc' in x else 'Não Especificado'
                 )
-            )        
+            )
+        
         # Remover linhas onde Nome está vazio
         df = df[df['Nome'].notna()]
         
@@ -142,14 +143,19 @@ def load_data():
         float_columns = ['MMIN', 'MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR']
         for col in float_columns:
             if col in df.columns:
-                df[col] = df[col].round(2)
+                df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
         
-        # Substituir NaN por None para melhor visualização
-        df = df.replace({pd.NA: None, pd.NaT: None, np.nan: None})
+        # Tratar valores ausentes
+        for col in df.columns:
+            if df[col].dtype in ['float64', 'Int64']:
+                df[col] = df[col].fillna(0)
+            else:
+                df[col] = df[col].fillna('')
         
         return df
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {str(e)}")
+        st.write("Detalhes do erro para debug:", e)  # Adiciona mais detalhes do erro
         return None
 # ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
 
