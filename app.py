@@ -162,11 +162,16 @@ def get_birth_year_filter(df, key_suffix):
     """
     Cria filtro por ano de nascimento com opções flexíveis
     """
-    # Converter coluna de data de nascimento para datetime
+    # Converter coluna de data de nascimento para datetime com tratamento de erros
     df['Data de Nascimento'] = pd.to_datetime(df['Data de Nascimento'], errors='coerce')
     
-    # Extrair anos únicos de nascimento
-    anos_nascimento = sorted(df['Data de Nascimento'].dt.year.unique(), reverse=True)
+    # Extrair anos únicos de nascimento, removendo valores nulos
+    anos_nascimento = sorted(df['Data de Nascimento'].dt.year.dropna().unique(), reverse=True)
+    
+    # Se não houver anos válidos, retornar o DataFrame original
+    if not anos_nascimento:
+        st.warning("Não foram encontradas datas de nascimento válidas no conjunto de dados.")
+        return df
     
     # Criar opções de filtro
     opcoes_filtro = ["Todos os anos"]
@@ -200,9 +205,7 @@ def get_birth_year_filter(df, key_suffix):
         anos = [int(x) for x in filtro_selecionado.split()[-3::2]]
         return df[df['Data de Nascimento'].dt.year.between(anos[0], anos[1])]
     
-    return df
-
-# ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
+    return df# ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
 
 def process_text_query(df, query_text):
     """Processa consultas em texto livre"""
