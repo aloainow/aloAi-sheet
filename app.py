@@ -157,6 +157,51 @@ def load_data():
         st.error(f"Erro ao carregar arquivo: {str(e)}")
         st.write("Detalhes do erro para debug:", e)  # Adiciona mais detalhes do erro
         return None
+
+def get_birth_year_filter(df, key_suffix):
+    """
+    Cria filtro por ano de nascimento com opções flexíveis
+    """
+    # Converter coluna de data de nascimento para datetime
+    df['Data de Nascimento'] = pd.to_datetime(df['Data de Nascimento'], errors='coerce')
+    
+    # Extrair anos únicos de nascimento
+    anos_nascimento = sorted(df['Data de Nascimento'].dt.year.unique(), reverse=True)
+    
+    # Criar opções de filtro
+    opcoes_filtro = ["Todos os anos"]
+    
+    # Adicionar opções para anos específicos
+    for ano in anos_nascimento:
+        opcoes_filtro.append(f"Nascidos em {ano}")
+    
+    # Adicionar opções para ranges
+    ano_min, ano_max = min(anos_nascimento), max(anos_nascimento)
+    opcoes_filtro.append(f"Nascidos até {ano_min}")
+    opcoes_filtro.append(f"Nascidos entre {ano_min} e {ano_max}")
+    
+    # Criar selectbox
+    filtro_selecionado = st.selectbox(
+        "Filtrar por Ano de Nascimento",
+        opcoes_filtro,
+        key=f"birth_year_filter_{key_suffix}"
+    )
+    
+    # Aplicar filtro selecionado
+    if filtro_selecionado == "Todos os anos":
+        return df
+    elif "Nascidos em" in filtro_selecionado:
+        ano = int(filtro_selecionado.split()[-1])
+        return df[df['Data de Nascimento'].dt.year == ano]
+    elif "Nascidos até" in filtro_selecionado:
+        ano = int(filtro_selecionado.split()[-1])
+        return df[df['Data de Nascimento'].dt.year <= ano]
+    elif "Nascidos entre" in filtro_selecionado:
+        anos = [int(x) for x in filtro_selecionado.split()[-3::2]]
+        return df[df['Data de Nascimento'].dt.year.between(anos[0], anos[1])]
+    
+    return df
+
 # ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
 
 def process_text_query(df, query_text):
@@ -442,11 +487,18 @@ def analytics_section():
     if df is None:
         return
     
-    # Usar chave única para seleção de gênero nesta seção
-    gender = get_gender_selection("analytics")
+    # Criar coluna para filtros
+    filter_col1, filter_col2 = st.columns(2)
     
-    # Filtrar dados por gênero
-    df = df[df['Gênero'] == gender]
+    with filter_col1:
+        # Seleção de gênero
+        gender = get_gender_selection("analytics")
+        # Filtrar por gênero
+        df = df[df['Gênero'] == gender]
+    
+    with filter_col2:
+        # Filtro por ano de nascimento
+        df = get_birth_year_filter(df, "analytics")
     
     # Criar tabs para diferentes tipos de análise
     tab1, tab2 = st.tabs(["Evolução Individual", "Comparação entre Jogadores"])
@@ -514,7 +566,6 @@ def analytics_section():
             summary = comparison_data.groupby('Nome')[selected_attribute].agg(['mean', 'min', 'max'])
             summary.columns = ['Média', 'Mínimo', 'Máximo']
             st.dataframe(summary.round(2), use_container_width=True)
-
 def queries_section():
     """Seção de consultas por categoria com filtro de gênero"""
     st.header("🔍 Consultas por Categoria")
@@ -524,13 +575,24 @@ def queries_section():
     if df is None:
         return
     
-    # Usar chave única para seleção de gênero nesta seção
-    gender = get_gender_selection("queries")
+    # Criar coluna para filtros
+    filter_col1, filter_col2 = st.columns(2)
     
-    # Criar duas colunas
-    col1, col2 = st.columns([0.2, 0.8])
+    with filter_col1:
+        # Seleção de gênero
+        gender = get_gender_selection("queries")
+        # Filtrar por gênero
+        df = df[df['Gênero'] == gender]
+    
+    with filter_col2:
+        # Filtro por ano de nascimento
+        df = get_birth_year_filter(df, "queries")
+    
+    # Criar duas colunas para as categorias
+    col1, col2 = st.columns([0.4, 0.6])
     
     with col1:
+        st.subheader("Categorias Principais")
         # Seleção de categorias de estatísticas
         stat_categories = [
             "Pontuação", "Rebotes", "Assistências", "Defesa", 
@@ -545,6 +607,7 @@ def queries_section():
         )
     
     with col2:
+        st.subheader("Estatísticas Detalhadas")
         # Dicionário completo de todas as estatísticas disponíveis
         all_stats = {
             'Gerais': ['J', 'Mins', 'MMIN'],
@@ -643,9 +706,6 @@ def queries_section():
         
         # Estatísticas resumidas
         st.write("### Resumo")
-# Continuação da PARTE 4 - Final de queries_section() e main()
-
-        # Continuação do queries_section()
         col1, col2, col3 = st.columns(3)
         
         with col1:
@@ -668,7 +728,6 @@ def queries_section():
             help="Clique para baixar a lista completa em formato CSV",
             key="query_download"
         )
-
 def main():
     """Função principal da aplicação"""
     st.title("CBB_IA 🏀")
