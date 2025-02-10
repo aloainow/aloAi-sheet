@@ -127,9 +127,8 @@ def load_data():
             encoding='utf-8'
         )
         
-        # Se não existir coluna de gênero, criar uma
-        if 'Gênero' not in df.columns:
-            df['Gênero'] = 'Masculino'
+       # Determinar o gênero baseado na coluna 'Competição'
+        df['Gênero'] = df['Competição'].apply(lambda x: 'Feminino' if 'Fem' in x else 'Masculino')
         
         # Remover linhas onde Nome está vazio
         df = df[df['Nome'].notna()]
