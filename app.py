@@ -1,3 +1,6 @@
+# ================ PARTE 1 - IMPORTAÇÕES E CONFIGURAÇÕES ================
+# Coloque este código no início do arquivo app.py
+
 import os
 import pandas as pd
 import numpy as np
@@ -25,6 +28,7 @@ with st.sidebar:
         - **Posição**: Posição em quadra
         - **Competição**: Liga/Campeonato
         - **Equipe**: Time atual
+        - **Gênero**: Masculino/Feminino
         
         ### Estatísticas por Jogo
         - **J**: Jogos disputados
@@ -71,7 +75,8 @@ def load_data():
             'Posição': str,
             'Competição': str,
             'Equipe': str,
-            'J': 'Int64',  # Usando Int64 para suportar valores nulos
+            'Gênero': str,  # Adicionada coluna de gênero
+            'J': 'Int64',
             'Mins': str,
             'MMIN': 'float64',
             'PTS': 'Int64',
@@ -109,9 +114,13 @@ def load_data():
         df = pd.read_csv(
             os.path.join('files', selected_file),
             dtype=dtype_dict,
-            na_values=['', 'NA', 'nan', 'NaN'],  # Valores a serem tratados como NA
+            na_values=['', 'NA', 'nan', 'NaN'],
             encoding='utf-8'
         )
+        
+        # Se não existir coluna de gênero, criar uma
+        if 'Gênero' not in df.columns:
+            df['Gênero'] = 'Masculino'  # ou definir com base em alguma lógica específica
         
         # Remover linhas onde Nome está vazio
         df = df[df['Nome'].notna()]
@@ -129,11 +138,11 @@ def load_data():
     except Exception as e:
         st.error(f"Erro ao carregar arquivo: {str(e)}")
         return None
+        # ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
+# Coloque este código depois da Parte 1
 
 def process_text_query(df, query_text):
-    """
-    Processa consultas em texto livre e retorna os resultados filtrados
-    """
+    """Processa consultas em texto livre"""
     query_text = query_text.lower()
     result = df.copy()
     
@@ -196,72 +205,60 @@ def process_text_query(df, query_text):
                     result['Score_Geral'] = result[available_stats].mean(axis=1)
                     result = result.nlargest(top_n, 'Score_Geral')
         
-        # Filtros por posição
-        elif "ala" in query_text or "pivô" in query_text or "armador" in query_text:
-            positions = []
-            if "ala" in query_text:
-                positions.extend(["Ala", "Ala-Pivô", "Ala-Armador"])
-            if "pivô" in query_text:
-                positions.extend(["Pivô", "Ala-Pivô"])
-            if "armador" in query_text:
-                positions.extend(["Armador", "Ala-Armador"])
-            result = result[result['Posição'].isin(positions)]
-        
-        # Filtro por nacionalidade
-        for col in result.columns:
-            if col == 'Nacionalidade' and any(country.lower() in query_text for country in result[col].unique()):
-                for country in result[col].unique():
-                    if country.lower() in query_text:
-                        result = result[result[col].str.lower() == country.lower()]
-                        break
-        
         return result.copy()
     
     except Exception as e:
         st.error(f"Erro ao processar consulta: {str(e)}")
         return df.copy()
 
-def process_stats_query(df, stat_type=None):
-    """Processa consulta de estatísticas adaptada para a Planilha Piloto"""
+def process_stats_query(df, gender, stat_types_selected=None, selected_stats=None):
+    """Processa consulta de estatísticas com filtro de gênero e múltiplas estatísticas"""
     try:
         # Colunas base sempre mostradas
-        base_columns = ['Nome', 'Equipe', 'Competição', 'Posição', 'Nacionalidade']
+        base_columns = ['Nome', 'Equipe', 'Competição', 'Posição', 'Nacionalidade', 'Gênero']
         
-        # Dicionário de tipos de estatísticas adaptado
+        # Dicionário completo de tipos de estatísticas
         stat_types = {
             'pontos': ['PTS', 'MPTS', '3PTSC', 'LLT', 'LLC', 'AT'],
             'rebotes': ['TREB', 'MTREB', 'REBD', 'REBO', 'RB', 'MRB'],
             'assistencias': ['ASS', 'MASS'],
             'defesa': ['T', 'MT', 'REBD'],
             'geral': ['J', 'Mins', 'MMIN'],
-            'erros': ['POP', 'MPOP', 'ERR', 'MERR', 'FP']
+            'erros': ['POP', 'MPOP', 'ERR', 'MERR', 'FP'],
+            'eficiencia': ['AT', 'LLC', 'LLT', '3PTSC'],
+            'produtividade': ['MPTS', 'MASS', 'MTREB', 'MT']
         }
         
+        # Primeiro, filtrar por gênero
+        result = df[df['Gênero'] == gender].copy()
+        
         # Verificar colunas existentes
-        available_columns = df.columns.tolist()
+        available_columns = result.columns.tolist()
         base_columns = [col for col in base_columns if col in available_columns]
         
-        if stat_type and stat_type in stat_types:
-            stat_columns = [col for col in stat_types[stat_type] if col in available_columns]
-            columns = base_columns + stat_columns
-            result = df[columns].copy()
-            
-            # Ordenar baseado na estatística principal
-            if stat_columns:
-                main_stat = stat_columns[0]
-                result = result.sort_values(by=main_stat, ascending=False)
-        else:
-            # Todas as estatísticas
+        if selected_stats:
+            # Se há estatísticas específicas selecionadas, usar estas
+            columns = base_columns + selected_stats
+            result = result[columns].copy()
+        elif stat_types_selected:
+            # Se há tipos de estatísticas selecionados, pegar todas as estatísticas desses tipos
             stat_columns = []
-            for stats in stat_types.values():
-                stat_columns.extend([col for col in stats if col in available_columns])
-            
+            for stat_type in stat_types_selected:
+                if stat_type in stat_types:
+                    stat_columns.extend([col for col in stat_types[stat_type] if col in available_columns])
             columns = base_columns + list(dict.fromkeys(stat_columns))  # Remove duplicatas
-            result = df[columns].copy()
-            
-            # Ordenar por MPTS
-            if 'MPTS' in result.columns:
-                result = result.sort_values(by='MPTS', ascending=False)
+            result = result[columns].copy()
+        else:
+            # Caso contrário, mostrar todas as estatísticas disponíveis
+            all_stats = []
+            for stats in stat_types.values():
+                all_stats.extend([stat for stat in stats if stat in available_columns])
+            columns = base_columns + list(dict.fromkeys(all_stats))
+            result = result[columns].copy()
+        
+        # Ordenar por MPTS por padrão, se disponível
+        if 'MPTS' in result.columns:
+            result = result.sort_values(by='MPTS', ascending=False)
         
         return result
         
@@ -315,6 +312,7 @@ def create_evolution_chart(df, player_name, attributes):
         return None
 
 def create_comparison_chart(df, players, attribute):
+   def create_comparison_chart(df, players, attribute):
     """Cria gráfico de comparação de um atributo entre diferentes jogadores"""
     try:
         # Filtrar dados dos jogadores selecionados
@@ -341,6 +339,8 @@ def create_comparison_chart(df, players, attribute):
         return fig
     except Exception as e:
         st.error(f"Erro ao criar gráfico de comparação: {str(e)}")
+        return None
+
 def text_query_section():
     """Seção de consultas por texto livre"""
     st.header("🔍 Consulta por Texto")
@@ -417,6 +417,16 @@ def analytics_section():
     if df is None:
         return
     
+    # Adicionar seleção de gênero
+    gender = st.radio(
+        "Selecione o Gênero",
+        ["Masculino", "Feminino"],
+        horizontal=True
+    )
+    
+    # Filtrar dados por gênero
+    df = df[df['Gênero'] == gender]
+    
     # Criar tabs para diferentes tipos de análise
     tab1, tab2 = st.tabs(["Evolução Individual", "Comparação entre Jogadores"])
     
@@ -481,34 +491,104 @@ def analytics_section():
             st.dataframe(summary.round(2), use_container_width=True)
 
 def queries_section():
-    """Seção de consultas por categoria"""
+    """Seção de consultas por categoria com filtro de gênero"""
     st.header("🔍 Consultas por Categoria")
     
     # Carregar dados
     df = load_data()
     if df is None:
         return
-        
-    # Opções de consulta
-    query_type = st.selectbox(
-        "Tipo de estatística",
-        ["Todas", "Pontuação", "Rebotes", "Assistências", "Defesa", "Geral", "Erros"],
-        format_func=lambda x: x.title()
+    
+    # Primeiro, selecionar o gênero
+    gender = st.radio(
+        "Selecione o Gênero",
+        ["Masculino", "Feminino"],
+        horizontal=True
     )
     
-    # Converter seleção para chave do dicionário
+    # Criar duas colunas
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Seleção de categorias de estatísticas
+        stat_categories = [
+            "Pontuação", "Rebotes", "Assistências", "Defesa", 
+            "Geral", "Erros", "Eficiência", "Produtividade"
+        ]
+        
+        selected_categories = st.multiselect(
+            "Selecione as Categorias de Estatísticas",
+            stat_categories,
+            default=["Pontuação"]
+        )
+    
+    with col2:
+        # Dicionário completo de todas as estatísticas disponíveis
+        all_stats = {
+            'Gerais': ['J', 'Mins', 'MMIN'],
+            'Pontuação': ['PTS', 'MPTS', '3PTSC', 'AT'],
+            'Lances Livres': ['LLT', 'LLC'],
+            'Rebotes': ['TREB', 'MTREB', 'RB', 'MRB', 'REBD', 'REBO'],
+            'Assistências': ['ASS', 'MASS'],
+            'Defesa': ['T', 'MT'],
+            'Erros': ['POP', 'MPOP', 'ERR', 'MERR', 'FP']
+        }
+        
+        # Criar lista plana de todas as estatísticas
+        all_stats_flat = []
+        stats_descriptions = {
+            'J': 'Jogos disputados',
+            'Mins': 'Minutos totais',
+            'MMIN': 'Média de minutos por jogo',
+            'PTS': 'Pontos totais',
+            'MPTS': 'Média de pontos por jogo',
+            'TREB': 'Total de rebotes',
+            'MTREB': 'Média de rebotes por jogo',
+            '3PTSC': 'Arremessos de 3 pontos convertidos',
+            'ASS': 'Total de assistências',
+            'MASS': 'Média de assistências por jogo',
+            'RB': 'Rebotes',
+            'MRB': 'Média de rebotes',
+            'T': 'Tocos (bloqueios)',
+            'MT': 'Média de tocos',
+            'LLT': 'Lances livres tentados',
+            'LLC': 'Lances livres convertidos',
+            'AT': 'Arremessos tentados',
+            'REBD': 'Rebotes defensivos',
+            'REBO': 'Rebotes ofensivos',
+            'POP': 'Posse de bola perdida',
+            'MPOP': 'Média de posse de bola perdida',
+            'ERR': 'Erros',
+            'MERR': 'Média de erros',
+            'FP': 'Faltas cometidas'
+        }
+        
+        for stats in all_stats.values():
+            all_stats_flat.extend(stats)
+        
+        # Seleção de estatísticas específicas
+        selected_stats = st.multiselect(
+            "Selecione Estatísticas Específicas (opcional)",
+            sorted(all_stats_flat),
+            format_func=lambda x: f"{x} - {stats_descriptions.get(x, x)}"
+        )
+    
+    # Converter categorias selecionadas para o formato do dicionário
     query_map = {
-        "Todas": None,
         "Pontuação": "pontos",
         "Rebotes": "rebotes",
         "Assistências": "assistencias",
         "Defesa": "defesa",
         "Geral": "geral",
-        "Erros": "erros"
+        "Erros": "erros",
+        "Eficiência": "eficiencia",
+        "Produtividade": "produtividade"
     }
     
+    selected_types = [query_map[cat] for cat in selected_categories if cat in query_map]
+    
     # Processar consulta
-    result = process_stats_query(df, query_map[query_type])
+    result = process_stats_query(df, gender, selected_types, selected_stats)
     
     if result is not None and not result.empty:
         total_players = len(result)
