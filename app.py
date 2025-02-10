@@ -127,9 +127,14 @@ def load_data():
             encoding='utf-8'
         )
         
-       # Determinar o gênero baseado na coluna 'Competição'
-        df['Gênero'] = df['Competição'].apply(lambda x: 'Feminino' if 'Fem' in x else 'Masculino')
-        
+        # Verificar se a coluna Gênero existe e está preenchida
+        if 'Gênero' not in df.columns or df['Gênero'].isna().any():
+            # Se não existir ou tiver valores nulos, inferir baseado na competição
+            df['Gênero'] = df['Competição'].apply(
+                lambda x: 'Feminino' if 'Fem' in x else (
+                    'Masculino' if 'Masc' in x else 'Não Especificado'
+                )
+            )        
         # Remover linhas onde Nome está vazio
         df = df[df['Nome'].notna()]
         
