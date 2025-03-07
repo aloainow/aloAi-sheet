@@ -734,7 +734,7 @@ def queries_section():
         )
 def main():
     """Função principal da aplicação"""
-    st.title("CBB_IA 🏀")
+    st.title("Projeto RADAR_CBB 🏀")
     
     # Criar tabs principais
     tab1, tab2, tab3 = st.tabs(["Consulta por Texto", "Consultas por Categoria", "Análise de Evolução"])
