@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # Configuração da página
-st.set_page_config(page_title="CBB_IA 🏀", page_icon="🏀", layout="wide")  
+st.set_page_config(page_title="Projeto RADAR_CBB 🏀", page_icon="🏀", layout="wide")  
 
 # Barra lateral com informações das colunas
 with st.sidebar:
