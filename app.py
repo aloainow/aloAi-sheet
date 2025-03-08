@@ -211,9 +211,10 @@ def load_data():
             if 'TO' in df.columns:
                 df['MERR'] = (df['TO'] / df['J']).round(1)
         
-        # Tratar valores ausentes
+        # Tratar valores ausentes - MODIFICAÇÃO AQUI
         for col in df.columns:
-            if df[col].dtype in ['float64', 'Int64']:
+            # Usar pandas is_numeric_dtype para verificar qualquer tipo numérico
+            if pd.api.types.is_numeric_dtype(df[col]):
                 df[col] = df[col].fillna(0)
             else:
                 df[col] = df[col].fillna('')
