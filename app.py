@@ -181,35 +181,7 @@ def load_data():
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
         
-        # Calcular campos derivados (médias por jogo)
-        if 'J' in df.columns and df['J'].notna().any():
-            # Minutos por jogo
-            if 'MIN' in df.columns:
-                df['MMIN'] = (df['MIN'] / df['J']).round(1)
-            
-            # Pontos por jogo
-            if 'PTS' in df.columns:
-                df['MPTS'] = (df['PTS'] / df['J']).round(1)
-            
-            # Rebotes por jogo
-            if 'RT' in df.columns:
-                df['MTREB'] = (df['RT'] / df['J']).round(1)
-            
-            # Assistências por jogo
-            if 'AS' in df.columns:
-                df['MASS'] = (df['AS'] / df['J']).round(1)
-            
-            # Rebotes por jogo
-            if 'RT' in df.columns:
-                df['MRB'] = (df['RT'] / df['J']).round(1)
-            
-            # Tocos por jogo
-            if 'BS' in df.columns:
-                df['MT'] = (df['BS'] / df['J']).round(1)
-            
-            # Erros por jogo
-            if 'TO' in df.columns:
-                df['MERR'] = (df['TO'] / df['J']).round(1)
+        # Não calcular mais médias - usaremos apenas as estatísticas originais dos arquivos
         
         # Tratar valores ausentes
         for col in df.columns:
@@ -254,7 +226,7 @@ def aggregate_player_data(df):
         result.at[idx, 'player_id'] = player_ids[player_name]
     
     # Identificar diferentes tipos de colunas
-    # Sabemos que os valores no CSV já são médias por temporada
+    # Utilizar apenas as colunas disponíveis no arquivo original
     
     # Colunas que devem ser somadas
     sum_cols = ['J']  # Jogos é a única coluna que deve ser realmente somada
@@ -262,9 +234,7 @@ def aggregate_player_data(df):
     # Colunas de médias nos arquivos CSV - precisamos fazer média ponderada por jogos
     avg_cols = ['MIN', 'PTS', 'RO', 'RD', 'RT', 'AS', 'PF', 'BS', 'ST', 'TO', 'RNK']
     
-    # Colunas que são médias derivadas - serão recalculadas depois
-    derived_cols = ['MMIN', 'MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR']
-    
+    # Removendo colunas de médias derivadas que não queremos mais
     # Colunas que são percentuais - também precisam de média ponderada
     pct_cols = ['2FGP', '3FGP', 'FT']
     
@@ -338,25 +308,7 @@ def aggregate_player_data(df):
             if col in pct_cols:
                 grouped[col] = (grouped[col] * 100).round(1).astype(str) + '%'
     
-    # Recalcular as médias por jogo derivadas se necessário
-    if 'J' in grouped.columns and grouped['J'].sum() > 0:
-        if 'PTS' in grouped.columns and 'MPTS' not in grouped.columns:
-            grouped['MPTS'] = grouped['PTS']
-        
-        if 'RT' in grouped.columns and 'MTREB' not in grouped.columns:
-            grouped['MTREB'] = grouped['RT']
-        
-        if 'AS' in grouped.columns and 'MASS' not in grouped.columns:
-            grouped['MASS'] = grouped['AS']
-        
-        if 'BS' in grouped.columns and 'MT' not in grouped.columns:
-            grouped['MT'] = grouped['BS']
-        
-        if 'TO' in grouped.columns and 'MERR' not in grouped.columns:
-            grouped['MERR'] = grouped['TO']
-        
-        if 'MIN' in grouped.columns and 'MMIN' not in grouped.columns:
-            grouped['MMIN'] = grouped['MIN']
+    # Não adicionamos mais as colunas de médias derivadas
     
     # Adicionamos uma coluna com a quantidade de temporadas
     grouped['Temporadas'] = result.groupby('player_id').size()
@@ -531,16 +483,16 @@ def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, s
         # Colunas base sempre mostradas (apenas as disponíveis)
         base_columns = [col for col in ['NOME', 'EQUIPE', 'LIGA', 'POSIÇÃO', 'NACIONALIDADE', 'Gênero'] if col in available_columns]
         
-        # Dicionário completo de tipos de estatísticas (apenas as disponíveis)
+        # Dicionário completo de tipos de estatísticas (apenas as disponíveis e sem médias derivadas)
         stat_types = {
-            'pontos': [col for col in ['PTS', 'MPTS', '3FGP', 'FT', '2FGP'] if col in available_columns],
-            'rebotes': [col for col in ['RT', 'MTREB', 'RD', 'RO', 'MRB'] if col in available_columns],
-            'assistencias': [col for col in ['AS', 'MASS'] if col in available_columns],
-            'defesa': [col for col in ['BS', 'MT', 'RD', 'ST'] if col in available_columns],
-            'geral': [col for col in ['J', 'MIN', 'MMIN', 'Temporadas'] if col in available_columns],
-            'erros': [col for col in ['TO', 'MERR', 'PF'] if col in available_columns],
+            'pontos': [col for col in ['PTS', '3FGP', 'FT', '2FGP'] if col in available_columns],
+            'rebotes': [col for col in ['RT', 'RD', 'RO'] if col in available_columns],
+            'assistencias': [col for col in ['AS'] if col in available_columns],
+            'defesa': [col for col in ['BS', 'RD', 'ST'] if col in available_columns],
+            'geral': [col for col in ['J', 'MIN', 'Temporadas'] if col in available_columns],
+            'erros': [col for col in ['TO', 'PF'] if col in available_columns],
             'eficiencia': [col for col in ['2FGP', '3FGP', 'FT', 'RNK'] if col in available_columns],
-            'produtividade': [col for col in ['MPTS', 'MASS', 'MTREB', 'MT'] if col in available_columns]
+            'produtividade': [col for col in ['PTS', 'AS', 'RT', 'BS'] if col in available_columns]
         }
         
         # Remover tipos de estatísticas vazios
@@ -575,11 +527,8 @@ def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, s
         if aggregate:
             result = aggregate_player_data(result)
         
-        # Ordenar por MPTS por padrão, se disponível
-        if 'MPTS' in result.columns:
-            result = result.sort_values(by='MPTS', ascending=False)
-        elif 'PTS' in result.columns:  # Alternativa se MPTS não estiver disponível
-            result = result.sort_values(by='PTS', ascending=False)
+        # Ordenar por PTS por padrão, se disponível
+        if 
         
         return result
         
@@ -812,9 +761,8 @@ def analytics_section():
         player_data = df[df['NOME'] == selected_player]
         available_attrs = []
         
-        # Lista de atributos potenciais
+        # Lista de atributos potenciais (só estatísticas originais, sem médias derivadas)
         potential_attrs = [
-            'MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR',
             'PTS', 'RT', 'AS', 'RD', 'RO', 'BS', 'ST', 'RNK'
         ]
         
@@ -943,15 +891,15 @@ def queries_section():
         # Verificar colunas disponíveis
         available_columns = df.columns.tolist()
         
-        # Dicionário completo de estatísticas disponíveis
+        # Dicionário completo de estatísticas disponíveis (sem médias derivadas)
         all_stats = {
-            'Gerais': [col for col in ['J', 'MIN', 'MMIN', 'Temporadas'] if col in available_columns],
-            'Pontuação': [col for col in ['PTS', 'MPTS', '2FGP', '3FGP'] if col in available_columns],
-            'Rebotes': [col for col in ['RT', 'MTREB', 'RO', 'RD', 'MRB'] if col in available_columns],
-            'Assistências': [col for col in ['AS', 'MASS'] if col in available_columns],
-            'Defesa': [col for col in ['BS', 'MT', 'ST'] if col in available_columns],
+            'Gerais': [col for col in ['J', 'MIN', 'Temporadas'] if col in available_columns],
+            'Pontuação': [col for col in ['PTS', '2FGP', '3FGP'] if col in available_columns],
+            'Rebotes': [col for col in ['RT', 'RO', 'RD'] if col in available_columns],
+            'Assistências': [col for col in ['AS'] if col in available_columns],
+            'Defesa': [col for col in ['BS', 'ST'] if col in available_columns],
             'Eficiência': [col for col in ['RNK', 'FT'] if col in available_columns],
-            'Erros': [col for col in ['TO', 'MERR', 'PF'] if col in available_columns]
+            'Erros': [col for col in ['TO', 'PF'] if col in available_columns]
         }
         
         # Remover categorias vazias
@@ -965,25 +913,18 @@ def queries_section():
         stats_descriptions = {
             'J': 'Jogos disputados',
             'MIN': 'Minutos totais',
-            'MMIN': 'Média de minutos por jogo',
             'PTS': 'Pontos totais',
-            'MPTS': 'Média de pontos por jogo',
             'RT': 'Total de rebotes',
-            'MTREB': 'Média de rebotes por jogo',
             '2FGP': 'Percentual de arremessos de 2 pontos',
             '3FGP': 'Percentual de arremessos de 3 pontos',
             'AS': 'Total de assistências',
-            'MASS': 'Média de assistências por jogo',
             'RO': 'Rebotes ofensivos',
             'RD': 'Rebotes defensivos',
-            'MRB': 'Média de rebotes',
             'BS': 'Tocos (bloqueios)',
-            'MT': 'Média de tocos',
             'ST': 'Roubadas de bola',
             'FT': 'Percentual de lances livres',
             'PF': 'Faltas cometidas',
-            'TO': 'Turnovers',
-            'MERR': 'Média de erros',
+            'TO': 'Turnovers (erros)',
             'RNK': 'Ranking (eficiência)',
             'Temporadas': 'Número de temporadas'
         }
