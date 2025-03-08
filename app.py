@@ -182,7 +182,7 @@ def load_data():
                 df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
         
         # Calcular campos derivados (médias por jogo)
-        if 'J' in df.columns and 'J' in df.columns and df['J'].notna().any():
+        if 'J' in df.columns and df['J'].notna().any():
             # Minutos por jogo
             if 'MIN' in df.columns:
                 df['MMIN'] = (df['MIN'] / df['J']).round(1)
@@ -211,7 +211,7 @@ def load_data():
             if 'TO' in df.columns:
                 df['MERR'] = (df['TO'] / df['J']).round(1)
         
-        # Tratar valores ausentes - MODIFICAÇÃO AQUI
+        # Tratar valores ausentes
         for col in df.columns:
             # Usar pandas is_numeric_dtype para verificar qualquer tipo numérico
             if pd.api.types.is_numeric_dtype(df[col]):
@@ -426,9 +426,12 @@ def process_text_query_with_aggregation(df, query_text, aggregate=True):
     result = df.copy()
     
     try:
-        # Dicionário de estatísticas ofensivas combinadas
-        offensive_stats = ['PTS', 'MPTS', '3FGP', 'FT']
-        defensive_stats = ['RT', 'MTREB', 'RD', 'BS', 'MT', 'ST']
+        # Verificar as colunas disponíveis no DataFrame
+        available_columns = result.columns.tolist()
+        
+        # Dicionário de estatísticas ofensivas combinadas (apenas as disponíveis)
+        offensive_stats = [col for col in ['PTS', 'MPTS', '3FGP', 'FT'] if col in available_columns]
+        defensive_stats = [col for col in ['RT', 'MTREB', 'RD', 'BS', 'MT', 'ST'] if col in available_columns]
         
         # Processar diferentes tipos de consultas
         if "idade" in query_text or "anos" in query_text:
@@ -449,22 +452,20 @@ def process_text_query_with_aggregation(df, query_text, aggregate=True):
         
         elif "ofensiv" in query_text:
             # Calcular score ofensivo combinado
-            available_stats = [col for col in offensive_stats if col in result.columns]
-            if available_stats:
+            if offensive_stats:
                 # Converter percentuais para valores numéricos
-                for col in available_stats:
+                for col in offensive_stats:
                     if col in ['3FGP', 'FT', '2FGP']:
                         if result[col].dtype == 'object':
                             result[col] = result[col].str.rstrip('%').astype('float') / 100
                 
-                result['Score_Ofensivo'] = result[available_stats].mean(axis=1)
+                result['Score_Ofensivo'] = result[offensive_stats].mean(axis=1)
                 result = result.sort_values('Score_Ofensivo', ascending=False)
         
         elif "defensiv" in query_text:
             # Calcular score defensivo combinado
-            available_stats = [col for col in defensive_stats if col in result.columns]
-            if available_stats:
-                result['Score_Defensivo'] = result[available_stats].mean(axis=1)
+            if defensive_stats:
+                result['Score_Defensivo'] = result[defensive_stats].mean(axis=1)
                 result = result.sort_values('Score_Defensivo', ascending=False)
         
         elif "top" in query_text or "melhores" in query_text:
@@ -474,39 +475,39 @@ def process_text_query_with_aggregation(df, query_text, aggregate=True):
             top_n = int(numbers[0]) if numbers else 5
             
             # Identificar estatística específica
-            if "pont" in query_text:
+            if "pont" in query_text and 'MPTS' in available_columns:
                 result = result.sort_values('MPTS', ascending=False)
-            elif "rebote" in query_text:
+            elif "rebote" in query_text and 'MTREB' in available_columns:
                 result = result.sort_values('MTREB', ascending=False)
-            elif "assist" in query_text:
+            elif "assist" in query_text and 'MASS' in available_columns:
                 result = result.sort_values('MASS', ascending=False)
-            elif "block" in query_text or "toco" in query_text:
+            elif "block" in query_text or "toco" in query_text and 'MT' in available_columns:
                 result = result.sort_values('MT', ascending=False)
-            elif "eficiencia" in query_text or "ranking" in query_text:
+            elif "eficiencia" in query_text or "ranking" in query_text and 'RNK' in available_columns:
                 result = result.sort_values('RNK', ascending=False)
             else:
                 # Score geral combinando principais estatísticas
-                main_stats = ['MPTS', 'MTREB', 'MASS']
-                available_stats = [col for col in main_stats if col in result.columns]
-                if available_stats:
-                    result['Score_Geral'] = result[available_stats].mean(axis=1)
+                main_stats = [col for col in ['MPTS', 'MTREB', 'MASS'] if col in available_columns]
+                if main_stats:
+                    result['Score_Geral'] = result[main_stats].mean(axis=1)
                     result = result.sort_values('Score_Geral', ascending=False)
         
         # Filtrar por nacionalidade se mencionada
         for country in ["brasil", "brasileiro", "brasileira", "brazilian"]:
-            if country in query_text:
+            if country in query_text and 'NACIONALIDADE' in available_columns:
                 result = result[result['NACIONALIDADE'].str.contains('BRA', case=False)]
         
         # Filtrar por posição se mencionada
-        positions = {
-            "armador": ["PG", "G"],
-            "ala": ["SF", "SG", "F", "F/G"],
-            "pivô": ["C", "PF/C", "PF", "F"]
-        }
-        
-        for pos_name, pos_codes in positions.items():
-            if pos_name in query_text:
-                result = result[result['POSIÇÃO'].str.contains('|'.join(pos_codes), case=False, regex=True)]
+        if 'POSIÇÃO' in available_columns:
+            positions = {
+                "armador": ["PG", "G"],
+                "ala": ["SF", "SG", "F", "F/G"],
+                "pivô": ["C", "PF/C", "PF", "F"]
+            }
+            
+            for pos_name, pos_codes in positions.items():
+                if pos_name in query_text:
+                    result = result[result['POSIÇÃO'].str.contains('|'.join(pos_codes), case=False, regex=True)]
         
         # Agregar dados por jogador se solicitado
         if aggregate:
@@ -524,45 +525,49 @@ def process_text_query_with_aggregation(df, query_text, aggregate=True):
 def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, selected_stats=None, aggregate=True):
     """Processa consulta de estatísticas com filtro de gênero, múltiplas estatísticas e agregação por jogador"""
     try:
-        # Colunas base sempre mostradas
-        base_columns = ['NOME', 'EQUIPE', 'LIGA', 'POSIÇÃO', 'NACIONALIDADE', 'Gênero']
+        # Verificar as colunas disponíveis no DataFrame
+        available_columns = df.columns.tolist()
         
-        # Dicionário completo de tipos de estatísticas
+        # Colunas base sempre mostradas (apenas as disponíveis)
+        base_columns = [col for col in ['NOME', 'EQUIPE', 'LIGA', 'POSIÇÃO', 'NACIONALIDADE', 'Gênero'] if col in available_columns]
+        
+        # Dicionário completo de tipos de estatísticas (apenas as disponíveis)
         stat_types = {
-            'pontos': ['PTS', 'MPTS', '3FGP', 'FT', '2FGP'],
-            'rebotes': ['RT', 'MTREB', 'RD', 'RO', 'MRB'],
-            'assistencias': ['AS', 'MASS'],
-            'defesa': ['BS', 'MT', 'RD', 'ST'],
-            'geral': ['J', 'MIN', 'MMIN', 'Temporadas'],
-            'erros': ['TO', 'MERR', 'PF'],
-            'eficiencia': ['2FGP', '3FGP', 'FT', 'RNK'],
-            'produtividade': ['MPTS', 'MASS', 'MTREB', 'MT']
+            'pontos': [col for col in ['PTS', 'MPTS', '3FGP', 'FT', '2FGP'] if col in available_columns],
+            'rebotes': [col for col in ['RT', 'MTREB', 'RD', 'RO', 'MRB'] if col in available_columns],
+            'assistencias': [col for col in ['AS', 'MASS'] if col in available_columns],
+            'defesa': [col for col in ['BS', 'MT', 'RD', 'ST'] if col in available_columns],
+            'geral': [col for col in ['J', 'MIN', 'MMIN', 'Temporadas'] if col in available_columns],
+            'erros': [col for col in ['TO', 'MERR', 'PF'] if col in available_columns],
+            'eficiencia': [col for col in ['2FGP', '3FGP', 'FT', 'RNK'] if col in available_columns],
+            'produtividade': [col for col in ['MPTS', 'MASS', 'MTREB', 'MT'] if col in available_columns]
         }
+        
+        # Remover tipos de estatísticas vazios
+        stat_types = {k: v for k, v in stat_types.items() if v}
         
         # Primeiro, filtrar por gênero
         result = df[df['Gênero'] == gender].copy()
         
-        # Verificar colunas existentes
-        available_columns = result.columns.tolist()
-        base_columns = [col for col in base_columns if col in available_columns]
-        
         if selected_stats:
-            # Se há estatísticas específicas selecionadas, usar estas
-            columns = base_columns + [col for col in selected_stats if col in available_columns]
-            result = result[columns].copy()
+            # Se há estatísticas específicas selecionadas, usar estas (se estiverem disponíveis)
+            valid_selected_stats = [col for col in selected_stats if col in available_columns]
+            columns = base_columns + valid_selected_stats
+            if valid_selected_stats:  # Apenas filtrar se houver estatísticas válidas selecionadas
+                result = result[columns].copy()
         elif stat_types_selected:
             # Se há tipos de estatísticas selecionados, pegar todas as estatísticas desses tipos
             stat_columns = []
             for stat_type in stat_types_selected:
                 if stat_type in stat_types:
-                    stat_columns.extend([col for col in stat_types[stat_type] if col in available_columns])
+                    stat_columns.extend(stat_types[stat_type])
             columns = base_columns + list(dict.fromkeys(stat_columns))  # Remove duplicatas
             result = result[columns].copy()
         else:
             # Caso contrário, mostrar todas as estatísticas disponíveis
             all_stats = []
             for stats in stat_types.values():
-                all_stats.extend([stat for stat in stats if stat in available_columns])
+                all_stats.extend(stats)
             columns = base_columns + list(dict.fromkeys(all_stats))
             result = result[columns].copy()
         
@@ -573,6 +578,8 @@ def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, s
         # Ordenar por MPTS por padrão, se disponível
         if 'MPTS' in result.columns:
             result = result.sort_values(by='MPTS', ascending=False)
+        elif 'PTS' in result.columns:  # Alternativa se MPTS não estiver disponível
+            result = result.sort_values(by='PTS', ascending=False)
         
         return result
         
@@ -591,11 +598,18 @@ def create_evolution_chart(df, player_name, attributes):
             st.error(f"Não foram encontrados dados para o jogador {player_name}")
             return None
         
+        # Verificar quais atributos estão realmente disponíveis
+        available_attributes = [attr for attr in attributes if attr in player_data.columns]
+        
+        if not available_attributes:
+            st.error(f"Nenhum dos atributos selecionados está disponível para o jogador {player_name}")
+            return None
+            
         # Ordenar por temporada para visualização adequada
         player_data = player_data.sort_values(by='TEMPORADA')
         
         # Tratar percentuais para plotagem
-        for attr in attributes:
+        for attr in available_attributes:
             if attr in ['2FGP', '3FGP', 'FT'] and attr in player_data.columns:
                 if player_data[attr].dtype == 'object':
                     player_data[attr] = player_data[attr].str.rstrip('%').astype('float')
@@ -604,20 +618,19 @@ def create_evolution_chart(df, player_name, attributes):
         fig = go.Figure()
         
         # Adicionar uma linha para cada atributo
-        for attr in attributes:
-            if attr in player_data.columns:
-                fig.add_trace(
-                    go.Scatter(
-                        x=player_data['TEMPORADA'],
-                        y=player_data[attr],
-                        name=attr,
-                        mode='lines+markers',
-                        hovertemplate=
-                        "<b>%{x}</b><br>" +
-                        f"{attr}: %{{y:.2f}}<br>" +
-                        "<extra></extra>"
-                    )
+        for attr in available_attributes:
+            fig.add_trace(
+                go.Scatter(
+                    x=player_data['TEMPORADA'],
+                    y=player_data[attr],
+                    name=attr,
+                    mode='lines+markers',
+                    hovertemplate=
+                    "<b>%{x}</b><br>" +
+                    f"{attr}: %{{y:.2f}}<br>" +
+                    "<extra></extra>"
                 )
+            )
         
         # Atualizar layout
         fig.update_layout(
@@ -638,6 +651,11 @@ def create_evolution_chart(df, player_name, attributes):
 def create_comparison_chart(df, players, attribute):
     """Cria gráfico de comparação de um atributo entre diferentes jogadores"""
     try:
+        # Verificar se o atributo está disponível
+        if attribute not in df.columns:
+            st.error(f"O atributo '{attribute}' não está disponível nos dados")
+            return None
+            
         # Filtrar dados dos jogadores selecionados
         comparison_data = df[df['NOME'].isin(players)]
         
@@ -790,19 +808,26 @@ def analytics_section():
             key="player_select_evolution"
         )
         
-        # Selecionar atributos para visualizar
-        available_attributes = [
+        # Obter colunas disponíveis para esse jogador
+        player_data = df[df['NOME'] == selected_player]
+        available_attrs = []
+        
+        # Lista de atributos potenciais
+        potential_attrs = [
             'MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR',
             'PTS', 'RT', 'AS', 'RD', 'RO', 'BS', 'ST', 'RNK'
         ]
         
-        # Filtrar atributos disponíveis pelo que está presente nos dados
-        available_attributes = [attr for attr in available_attributes if attr in df.columns]
+        # Verificar quais atributos realmente existem nos dados
+        for attr in potential_attrs:
+            if attr in player_data.columns and not player_data[attr].isnull().all():
+                available_attrs.append(attr)
         
+        # Selecionar atributos para visualizar
         selected_attributes = st.multiselect(
             "Selecione os atributos para visualizar",
-            available_attributes,
-            default=available_attributes[:3] if len(available_attributes) >= 3 else available_attributes,
+            available_attrs,
+            default=available_attrs[:3] if len(available_attrs) >= 3 else available_attrs,
             key="attributes_evolution"
         )
         
@@ -827,24 +852,39 @@ def analytics_section():
             key="players_comparison"
         )
         
-        # Selecionar atributo para comparação
-        selected_attribute = st.selectbox(
-            "Selecione o atributo para comparar",
-            available_attributes,
-            key="attribute_comparison"
-        )
-        
-        if selected_players and selected_attribute:
-            chart = create_comparison_chart(df, selected_players, selected_attribute)
-            if chart:
-                st.plotly_chart(chart, use_container_width=True)
+        # Obter atributos disponíveis para os jogadores selecionados
+        if selected_players:
+            players_data = df[df['NOME'].isin(selected_players)]
+            available_comparison_attrs = []
             
-            # Mostrar estatísticas resumidas
-            st.subheader("Estatísticas Resumidas")
-            comparison_data = df[df['NOME'].isin(selected_players)]
-            summary = comparison_data.groupby('NOME')[selected_attribute].agg(['mean', 'min', 'max'])
-            summary.columns = ['Média', 'Mínimo', 'Máximo']
-            st.dataframe(summary.round(2), use_container_width=True)
+            # Verificar quais atributos existem e têm dados para todos os jogadores selecionados
+            for attr in potential_attrs:
+                if attr in players_data.columns and not players_data[attr].isnull().all():
+                    available_comparison_attrs.append(attr)
+            
+            # Selecionar atributo para comparação
+            if available_comparison_attrs:
+                selected_attribute = st.selectbox(
+                    "Selecione o atributo para comparar",
+                    available_comparison_attrs,
+                    key="attribute_comparison"
+                )
+                
+                chart = create_comparison_chart(df, selected_players, selected_attribute)
+                if chart:
+                    st.plotly_chart(chart, use_container_width=True)
+                
+                # Mostrar estatísticas resumidas
+                st.subheader("Estatísticas Resumidas")
+                comparison_data = df[df['NOME'].isin(selected_players)]
+                if selected_attribute in comparison_data.columns:
+                    summary = comparison_data.groupby('NOME')[selected_attribute].agg(['mean', 'min', 'max'])
+                    summary.columns = ['Média', 'Mínimo', 'Máximo']
+                    st.dataframe(summary.round(2), use_container_width=True)
+            else:
+                st.warning("Não há atributos numéricos disponíveis para comparação entre os jogadores selecionados.")
+        else:
+            st.info("Selecione ao menos um jogador para comparação.")
 
 def queries_section():
     """Seção de consultas por categoria com filtro de gênero"""
@@ -899,19 +939,29 @@ def queries_section():
     
     with col2:
         st.subheader("Estatísticas Detalhadas")
-        # Dicionário completo de todas as estatísticas disponíveis
+        
+        # Verificar colunas disponíveis
+        available_columns = df.columns.tolist()
+        
+        # Dicionário completo de estatísticas disponíveis
         all_stats = {
-            'Gerais': ['J', 'MIN', 'MMIN', 'Temporadas'],
-            'Pontuação': ['PTS', 'MPTS', '2FGP', '3FGP'],
-            'Rebotes': ['RT', 'MTREB', 'RO', 'RD', 'MRB'],
-            'Assistências': ['AS', 'MASS'],
-            'Defesa': ['BS', 'MT', 'ST'],
-            'Eficiência': ['RNK', 'FT'],
-            'Erros': ['TO', 'MERR', 'PF']
+            'Gerais': [col for col in ['J', 'MIN', 'MMIN', 'Temporadas'] if col in available_columns],
+            'Pontuação': [col for col in ['PTS', 'MPTS', '2FGP', '3FGP'] if col in available_columns],
+            'Rebotes': [col for col in ['RT', 'MTREB', 'RO', 'RD', 'MRB'] if col in available_columns],
+            'Assistências': [col for col in ['AS', 'MASS'] if col in available_columns],
+            'Defesa': [col for col in ['BS', 'MT', 'ST'] if col in available_columns],
+            'Eficiência': [col for col in ['RNK', 'FT'] if col in available_columns],
+            'Erros': [col for col in ['TO', 'MERR', 'PF'] if col in available_columns]
         }
         
-        # Criar lista plana de todas as estatísticas
+        # Remover categorias vazias
+        all_stats = {k: v for k, v in all_stats.items() if v}
+        
+        # Criar lista plana de todas as estatísticas disponíveis
         all_stats_flat = []
+        for category_stats in all_stats.values():
+            all_stats_flat.extend(category_stats)
+        
         stats_descriptions = {
             'J': 'Jogos disputados',
             'MIN': 'Minutos totais',
@@ -938,20 +988,17 @@ def queries_section():
             'Temporadas': 'Número de temporadas'
         }
         
-        # Filtrar apenas as estatísticas disponíveis nos dados
-        available_stats = []
-        for category, stats in all_stats.items():
-            available_in_category = [stat for stat in stats if stat in df.columns]
-            if available_in_category:
-                all_stats_flat.extend(available_in_category)
-        
         # Seleção de estatísticas específicas
-        selected_stats = st.multiselect(
-            "Selecione Estatísticas Específicas (opcional)",
-            sorted(all_stats_flat),
-            format_func=lambda x: f"{x} - {stats_descriptions.get(x, x)}",
-            key="specific_stats"
-        )
+        if all_stats_flat:
+            selected_stats = st.multiselect(
+                "Selecione Estatísticas Específicas (opcional)",
+                sorted(all_stats_flat),
+                format_func=lambda x: f"{x} - {stats_descriptions.get(x, x)}",
+                key="specific_stats"
+            )
+        else:
+            st.warning("Não há estatísticas disponíveis para seleção")
+            selected_stats = []
     
     # Converter categorias selecionadas para o formato do dicionário
     query_map = {
@@ -1005,13 +1052,15 @@ def queries_section():
         with col1:
             st.metric("Total de Jogadores" if aggregate else "Total de Registros", total_players)
         
-        with col2:
-            competicoes = result['LIGA'].nunique()
-            st.metric("Competições", competicoes)
+        if 'LIGA' in result.columns:
+            with col2:
+                competicoes = result['LIGA'].nunique()
+                st.metric("Competições", competicoes)
         
-        with col3:
-            equipes = result['EQUIPE'].nunique()
-            st.metric("Equipes", equipes)
+        if 'EQUIPE' in result.columns:
+            with col3:
+                equipes = result['EQUIPE'].nunique()
+                st.metric("Equipes", equipes)
         
         # Opção de download
         st.download_button(
