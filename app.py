@@ -20,46 +20,47 @@ with st.sidebar:
     with st.expander("📈 Estatísticas Disponíveis"):
         st.markdown("""
         ### Informações do Jogador
-        - **Nome**: Nome do jogador
-        - **ID**: Identificação
-        - **Data de Nascimento**: Data de nascimento do jogador
-        - **Altura**: Altura do jogador
-        - **Nacionalidade**: País de origem
-        - **Posição**: Posição em quadra
-        - **Competição**: Liga/Campeonato
-        - **Equipe**: Time atual
+        - **NOME**: Nome do jogador
+        - **DATA DE NASCIMENTO**: Data de nascimento do jogador
+        - **ALTURA**: Altura do jogador
+        - **NACIONALIDADE**: País de origem
+        - **POSIÇÃO**: Posição em quadra
+        - **TEMPORADA**: Temporada/Ano
+        - **EQUIPE**: Time 
+        - **LIGA**: Liga/Campeonato
         - **Gênero**: Masculino/Feminino
         
         ### Estatísticas por Jogo
         - **J**: Jogos disputados
-        - **Mins**: Minutos totais
+        - **MIN**: Minutos totais
         - **MMIN**: Média de minutos por jogo
         - **PTS**: Pontos totais
         - **MPTS**: Média de pontos por jogo
-        - **TREB**: Total de rebotes
+        - **RT**: Total de rebotes
         - **MTREB**: Média de rebotes por jogo
-        - **3PTSC**: Arremessos de 3 pontos convertidos
-        - **ASS**: Total de assistências
+        - **3FGP**: Percentual de arremessos de 3 pontos
+        - **AS**: Total de assistências
         - **MASS**: Média de assistências por jogo
         
         ### Estatísticas Defensivas/Ofensivas
-        - **RB**: Rebotes
+        - **RO**: Rebotes ofensivos
+        - **RD**: Rebotes defensivos
+        - **RT**: Rebotes totais
         - **MRB**: Média de rebotes
-        - **T**: Tocos (bloqueios)
+        - **BS**: Tocos (bloqueios)
         - **MT**: Média de tocos
-        - **REBD**: Rebotes defensivos
-        - **REBO**: Rebotes ofensivos
+        
+        ### Percentuais de Arremessos
+        - **2FGP**: Percentual de arremessos de 2 pontos
+        - **3FGP**: Percentual de arremessos de 3 pontos
+        - **FT**: Percentual de lances livres
         
         ### Outras Estatísticas
-        - **LLT**: Lances livres tentados
-        - **LLC**: Lances livres convertidos
-        - **AT**: Arremessos tentados
-        - **FR**: Faltas recebidas
-        - **FP**: Faltas cometidas
-        - **POP**: Posse de bola perdida
-        - **MPOP**: Média de posse de bola perdida
-        - **ERR**: Erros
+        - **PF**: Faltas cometidas
+        - **ST**: Roubadas de bola
+        - **TO**: Turnovers (erros)
         - **MERR**: Média de erros
+        - **RNK**: Ranking (eficiência)
         """)
 
 # Função centralizada para seleção de gênero
@@ -73,78 +74,142 @@ def get_gender_selection(key_suffix):
     )
 
 def load_data():
-    """Carrega dados do CSV com tratamento específico para a Planilha Piloto"""
+    """Carrega dados de múltiplos arquivos CSV da estrutura de diretórios"""
     try:
-        # Definir os tipos de dados para cada coluna
+        # Definir os tipos de dados para as colunas na nova estrutura
         dtype_dict = {
-            'Nome': str,
-            'ID': str,
-            'Data de Nascimento': str,
-            'Altura': str,
-            'Nacionalidade': str,
-            'Posição': str,
-            'Competição': str,
-            'Equipe': str,
-            'Gênero': str,
+            'NOME': str,
+            'DATA DE NASCIMENTO': str,
+            'ALTURA': str,
+            'NACIONALIDADE': str,
+            'POSIÇÃO': str,
+            'TEMPORADA': str,
+            'EQUIPE': str,
+            'LIGA': str,
             'J': pd.Int64Dtype(),  # Usando Int64Dtype para permitir valores nulos
-            'Mins': str,
-            'MMIN': 'float64',
-            'PTS': pd.Int64Dtype(),
-            'MPTS': 'float64',
-            'TREB': pd.Int64Dtype(),
-            'MTREB': 'float64',
-            '3PTSC': pd.Int64Dtype(),
-            'ASS': pd.Int64Dtype(),
-            'MASS': 'float64',
-            'RB': pd.Int64Dtype(),
-            'MRB': 'float64',
-            'T': pd.Int64Dtype(),
-            'MT': 'float64',
-            'LLT': pd.Int64Dtype(),
-            'LLC': pd.Int64Dtype(),
-            'AT': pd.Int64Dtype(),
-            'FR': pd.Int64Dtype(),
-            'FP': pd.Int64Dtype(),
-            'POP': pd.Int64Dtype(),
-            'MPOP': pd.Int64Dtype(),
-            'REBD': pd.Int64Dtype(),
-            'REBO': pd.Int64Dtype(),
-            'ERR': pd.Int64Dtype(),
-            'MERR': 'float64'
+            'MIN': 'float64',
+            'PTS': 'float64',
+            '2FGP': str,
+            '3FGP': str,
+            'FT': str,
+            'RO': 'float64',
+            'RD': 'float64',
+            'RT': 'float64',
+            'AS': 'float64',
+            'PF': 'float64',
+            'BS': 'float64',
+            'ST': 'float64',
+            'TO': 'float64',
+            'RNK': 'float64'
         }
-
-        files = [f for f in os.listdir('files') if f.endswith('.csv')]
-        if not files:
-            st.error("Nenhum arquivo CSV encontrado na pasta 'files'")
+        
+        # Listas de todas as pastas e seus respectivos gêneros
+        folders = [
+            ('files/Atletas Masculinos', 'Masculino'),
+            ('files/Atletas Femininos', 'Feminino')
+        ]
+        
+        # DataFrame para armazenar todos os dados
+        all_data = []
+        
+        # Iterar sobre cada pasta
+        for folder_path, gender in folders:
+            try:
+                if not os.path.exists(folder_path):
+                    st.warning(f"Pasta não encontrada: {folder_path}")
+                    continue
+                
+                # Encontrar todos os arquivos CSV na pasta
+                csv_files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
+                
+                if not csv_files:
+                    st.warning(f"Nenhum arquivo CSV encontrado em: {folder_path}")
+                    continue
+                
+                # Processar cada arquivo CSV
+                for file_name in csv_files:
+                    try:
+                        file_path = os.path.join(folder_path, file_name)
+                        
+                        # Extrair o nome do jogador do nome do arquivo (removendo a extensão .csv)
+                        player_name = os.path.splitext(file_name)[0]
+                        
+                        # Ler o arquivo CSV
+                        df = pd.read_csv(
+                            file_path,
+                            dtype=dtype_dict,
+                            na_values=['', 'NA', 'nan', 'NaN', '#N/A', '#N/D', 'NULL'],
+                            encoding='utf-8'
+                        )
+                        
+                        # Adicionar coluna de gênero
+                        df['Gênero'] = gender
+                        
+                        # Verificar o formato do arquivo e ajustar se necessário
+                        if df.shape[1] > 0 and df.columns[0] == 'Unnamed: 0':
+                            # Arquivo está no formato esperado, não é necessário modificar o nome do jogador
+                            # Já que NOME deve estar presente como coluna
+                            pass
+                        else:
+                            # Adicionar coluna nome do jogador caso não exista
+                            if 'NOME' not in df.columns:
+                                df['NOME'] = player_name
+                        
+                        # Adicionar ao conjunto de dados geral
+                        all_data.append(df)
+                    except Exception as e:
+                        st.error(f"Erro ao processar arquivo {file_name}: {str(e)}")
+                        continue
+            except Exception as e:
+                st.error(f"Erro ao processar pasta {folder_path}: {str(e)}")
+                continue
+        
+        if not all_data:
+            st.error("Nenhum dado válido encontrado nas pastas especificadas")
             return None
         
-        selected_file = files[0]
+        # Concatenar todos os DataFrames
+        df = pd.concat(all_data, ignore_index=True)
         
-        # Ler o CSV com os tipos de dados especificados e tratamento de valores ausentes
-        df = pd.read_csv(
-            os.path.join('files', selected_file),
-            dtype=dtype_dict,
-            na_values=['', 'NA', 'nan', 'NaN', '#N/A', '#N/D', 'NULL'],
-            encoding='utf-8'
-        )
-        
-        # Verificar se a coluna Gênero existe e está preenchida
-        if 'Gênero' not in df.columns or df['Gênero'].isna().any():
-            # Se não existir ou tiver valores nulos, inferir baseado na competição
-            df['Gênero'] = df['Competição'].apply(
-                lambda x: 'Feminino' if isinstance(x, str) and 'Fem' in x else (
-                    'Masculino' if isinstance(x, str) and 'Masc' in x else 'Não Especificado'
-                )
-            )
-        
+        # Limpar dados
         # Remover linhas onde Nome está vazio
-        df = df[df['Nome'].notna()]
+        df = df[df['NOME'].notna()]
         
-        # Converter colunas float para ter 2 casas decimais
-        float_columns = ['MMIN', 'MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR']
-        for col in float_columns:
+        # Converter colunas de estatísticas para numérico e arredondar
+        numeric_cols = ['MIN', 'PTS', 'RO', 'RD', 'RT', 'AS', 'PF', 'BS', 'ST', 'TO', 'RNK']
+        for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
+        
+        # Calcular campos derivados (médias por jogo)
+        if 'J' in df.columns and 'J' in df.columns and df['J'].notna().any():
+            # Minutos por jogo
+            if 'MIN' in df.columns:
+                df['MMIN'] = (df['MIN'] / df['J']).round(1)
+            
+            # Pontos por jogo
+            if 'PTS' in df.columns:
+                df['MPTS'] = (df['PTS'] / df['J']).round(1)
+            
+            # Rebotes por jogo
+            if 'RT' in df.columns:
+                df['MTREB'] = (df['RT'] / df['J']).round(1)
+            
+            # Assistências por jogo
+            if 'AS' in df.columns:
+                df['MASS'] = (df['AS'] / df['J']).round(1)
+            
+            # Rebotes por jogo
+            if 'RT' in df.columns:
+                df['MRB'] = (df['RT'] / df['J']).round(1)
+            
+            # Tocos por jogo
+            if 'BS' in df.columns:
+                df['MT'] = (df['BS'] / df['J']).round(1)
+            
+            # Erros por jogo
+            if 'TO' in df.columns:
+                df['MERR'] = (df['TO'] / df['J']).round(1)
         
         # Tratar valores ausentes
         for col in df.columns:
@@ -155,8 +220,8 @@ def load_data():
         
         return df
     except Exception as e:
-        st.error(f"Erro ao carregar arquivo: {str(e)}")
-        st.write("Detalhes do erro para debug:", e)  # Adiciona mais detalhes do erro
+        st.error(f"Erro ao carregar arquivos: {str(e)}")
+        st.write("Detalhes do erro para debug:", e)
         return None
 
 def get_birth_year_filter(df, key_suffix):
@@ -164,10 +229,10 @@ def get_birth_year_filter(df, key_suffix):
     Cria filtro por ano de nascimento com opções flexíveis
     """
     # Converter coluna de data de nascimento para datetime com tratamento de erros
-    df['Data de Nascimento'] = pd.to_datetime(df['Data de Nascimento'], errors='coerce')
+    df['DATA DE NASCIMENTO'] = pd.to_datetime(df['DATA DE NASCIMENTO'], errors='coerce')
     
     # Extrair anos únicos de nascimento, removendo valores nulos
-    anos_nascimento = sorted(df['Data de Nascimento'].dt.year.dropna().unique(), reverse=True)
+    anos_nascimento = sorted(df['DATA DE NASCIMENTO'].dt.year.dropna().unique(), reverse=True)
     
     # Se não houver anos válidos, retornar o DataFrame original
     if not anos_nascimento:
@@ -198,15 +263,17 @@ def get_birth_year_filter(df, key_suffix):
         return df
     elif "Nascidos em" in filtro_selecionado:
         ano = int(filtro_selecionado.split()[-1])
-        return df[df['Data de Nascimento'].dt.year == ano]
+        return df[df['DATA DE NASCIMENTO'].dt.year == ano]
     elif "Nascidos até" in filtro_selecionado:
         ano = int(filtro_selecionado.split()[-1])
-        return df[df['Data de Nascimento'].dt.year <= ano]
+        return df[df['DATA DE NASCIMENTO'].dt.year <= ano]
     elif "Nascidos entre" in filtro_selecionado:
         anos = [int(x) for x in filtro_selecionado.split()[-3::2]]
-        return df[df['Data de Nascimento'].dt.year.between(anos[0], anos[1])]
+        return df[df['DATA DE NASCIMENTO'].dt.year.between(anos[0], anos[1])]
     
-    return df# ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
+    return df
+
+# ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
 
 def process_text_query(df, query_text):
     """Processa consultas em texto livre"""
@@ -215,13 +282,13 @@ def process_text_query(df, query_text):
     
     try:
         # Dicionário de estatísticas ofensivas combinadas
-        offensive_stats = ['PTS', 'MPTS', '3PTSC', 'ASS', 'MASS']
-        defensive_stats = ['TREB', 'MTREB', 'RB', 'MRB', 'T', 'MT', 'REBD']
+        offensive_stats = ['PTS', 'MPTS', '3FGP', 'FT']
+        defensive_stats = ['RT', 'MTREB', 'RD', 'BS', 'MT', 'ST']
         
         # Processar diferentes tipos de consultas
         if "idade" in query_text or "anos" in query_text:
             # Converter data de nascimento para idade
-            result['Idade'] = pd.to_datetime('today').year - pd.to_datetime(result['Data de Nascimento']).dt.year
+            result['Idade'] = pd.to_datetime('today').year - pd.to_datetime(result['DATA DE NASCIMENTO'], errors='coerce').dt.year
             
             # Extrair número da consulta
             import re
@@ -239,6 +306,12 @@ def process_text_query(df, query_text):
             # Calcular score ofensivo combinado
             available_stats = [col for col in offensive_stats if col in result.columns]
             if available_stats:
+                # Converter percentuais para valores numéricos
+                for col in available_stats:
+                    if col in ['3FGP', 'FT', '2FGP']:
+                        if result[col].dtype == 'object':
+                            result[col] = result[col].str.rstrip('%').astype('float') / 100
+                
                 result['Score_Ofensivo'] = result[available_stats].mean(axis=1)
                 result = result.sort_values('Score_Ofensivo', ascending=False)
         
@@ -264,6 +337,8 @@ def process_text_query(df, query_text):
                 result = result.nlargest(top_n, 'MASS')
             elif "block" in query_text or "toco" in query_text:
                 result = result.nlargest(top_n, 'MT')
+            elif "eficiencia" in query_text or "ranking" in query_text:
+                result = result.nlargest(top_n, 'RNK')
             else:
                 # Score geral combinando principais estatísticas
                 main_stats = ['MPTS', 'MTREB', 'MASS']
@@ -271,6 +346,22 @@ def process_text_query(df, query_text):
                 if available_stats:
                     result['Score_Geral'] = result[available_stats].mean(axis=1)
                     result = result.nlargest(top_n, 'Score_Geral')
+        
+        # Filtrar por nacionalidade se mencionada
+        for country in ["brasil", "brasileiro", "brasileira", "brazilian"]:
+            if country in query_text:
+                result = result[result['NACIONALIDADE'].str.contains('BRA', case=False)]
+        
+        # Filtrar por posição se mencionada
+        positions = {
+            "armador": ["PG", "G"],
+            "ala": ["SF", "SG", "F", "F/G"],
+            "pivô": ["C", "PF/C", "PF", "F"]
+        }
+        
+        for pos_name, pos_codes in positions.items():
+            if pos_name in query_text:
+                result = result[result['POSIÇÃO'].str.contains('|'.join(pos_codes), case=False, regex=True)]
         
         return result.copy()
     
@@ -282,17 +373,17 @@ def process_stats_query(df, gender, stat_types_selected=None, selected_stats=Non
     """Processa consulta de estatísticas com filtro de gênero e múltiplas estatísticas"""
     try:
         # Colunas base sempre mostradas
-        base_columns = ['Nome', 'Equipe', 'Competição', 'Posição', 'Nacionalidade', 'Gênero']
+        base_columns = ['NOME', 'EQUIPE', 'LIGA', 'POSIÇÃO', 'NACIONALIDADE', 'Gênero']
         
         # Dicionário completo de tipos de estatísticas
         stat_types = {
-            'pontos': ['PTS', 'MPTS', '3PTSC', 'LLT', 'LLC', 'AT'],
-            'rebotes': ['TREB', 'MTREB', 'REBD', 'REBO', 'RB', 'MRB'],
-            'assistencias': ['ASS', 'MASS'],
-            'defesa': ['T', 'MT', 'REBD'],
-            'geral': ['J', 'Mins', 'MMIN'],
-            'erros': ['POP', 'MPOP', 'ERR', 'MERR', 'FP'],
-            'eficiencia': ['AT', 'LLC', 'LLT', '3PTSC'],
+            'pontos': ['PTS', 'MPTS', '3FGP', 'FT', '2FGP'],
+            'rebotes': ['RT', 'MTREB', 'RD', 'RO', 'MRB'],
+            'assistencias': ['AS', 'MASS'],
+            'defesa': ['BS', 'MT', 'RD', 'ST'],
+            'geral': ['J', 'MIN', 'MMIN'],
+            'erros': ['TO', 'MERR', 'PF'],
+            'eficiencia': ['2FGP', '3FGP', 'FT', 'RNK'],
             'produtividade': ['MPTS', 'MASS', 'MTREB', 'MT']
         }
         
@@ -305,7 +396,7 @@ def process_stats_query(df, gender, stat_types_selected=None, selected_stats=Non
         
         if selected_stats:
             # Se há estatísticas específicas selecionadas, usar estas
-            columns = base_columns + selected_stats
+            columns = base_columns + [col for col in selected_stats if col in available_columns]
             result = result[columns].copy()
         elif stat_types_selected:
             # Se há tipos de estatísticas selecionados, pegar todas as estatísticas desses tipos
@@ -332,17 +423,27 @@ def process_stats_query(df, gender, stat_types_selected=None, selected_stats=Non
     except Exception as e:
         st.error(f"Erro ao processar estatísticas: {str(e)}")
         return pd.DataFrame()
+
 # ================ PARTE 3 - FUNÇÕES DE VISUALIZAÇÃO E ANÁLISE ================
 
 def create_evolution_chart(df, player_name, attributes):
     """Cria gráfico de evolução dos atributos selecionados para um jogador"""
     try:
         # Filtrar dados do jogador
-        player_data = df[df['Nome'] == player_name]
+        player_data = df[df['NOME'] == player_name]
         
         if player_data.empty:
             st.error(f"Não foram encontrados dados para o jogador {player_name}")
             return None
+        
+        # Ordenar por temporada para visualização adequada
+        player_data = player_data.sort_values(by='TEMPORADA')
+        
+        # Tratar percentuais para plotagem
+        for attr in attributes:
+            if attr in ['2FGP', '3FGP', 'FT'] and attr in player_data.columns:
+                if player_data[attr].dtype == 'object':
+                    player_data[attr] = player_data[attr].str.rstrip('%').astype('float')
         
         # Criar figura
         fig = go.Figure()
@@ -352,7 +453,7 @@ def create_evolution_chart(df, player_name, attributes):
             if attr in player_data.columns:
                 fig.add_trace(
                     go.Scatter(
-                        x=player_data['Competição'],
+                        x=player_data['TEMPORADA'],
                         y=player_data[attr],
                         name=attr,
                         mode='lines+markers',
@@ -366,7 +467,7 @@ def create_evolution_chart(df, player_name, attributes):
         # Atualizar layout
         fig.update_layout(
             title=f'Evolução de {player_name}',
-            xaxis_title='Competição',
+            xaxis_title='Temporada',
             yaxis_title='Valor',
             hovermode='x unified',
             showlegend=True,
@@ -383,21 +484,26 @@ def create_comparison_chart(df, players, attribute):
     """Cria gráfico de comparação de um atributo entre diferentes jogadores"""
     try:
         # Filtrar dados dos jogadores selecionados
-        comparison_data = df[df['Nome'].isin(players)]
+        comparison_data = df[df['NOME'].isin(players)]
         
         if comparison_data.empty:
             st.error("Não foram encontrados dados para os jogadores selecionados")
             return None
         
+        # Tratar percentuais para plotagem
+        if attribute in ['2FGP', '3FGP', 'FT'] and attribute in comparison_data.columns:
+            if comparison_data[attribute].dtype == 'object':
+                comparison_data[attribute] = comparison_data[attribute].str.rstrip('%').astype('float')
+        
         fig = px.bar(
             comparison_data,
-            x='Nome',
+            x='NOME',
             y=attribute,
-            color='Competição',
+            color='LIGA',
             barmode='group',
             title=f'Comparação de {attribute}',
             labels={
-                'Nome': 'Jogador',
+                'NOME': 'Jogador',
                 attribute: 'Valor'
             },
             height=500
@@ -480,6 +586,7 @@ def text_query_section():
                 mime='text/csv',
                 key="text_query_download"
             )
+
 # ================ PARTE 4 - SEÇÕES PRINCIPAIS E MAIN ================
 
 def analytics_section():
@@ -511,7 +618,7 @@ def analytics_section():
         st.subheader("Evolução Individual do Jogador")
         
         # Selecionar jogador
-        player_names = sorted(df['Nome'].unique())
+        player_names = sorted(df['NOME'].unique())
         selected_player = st.selectbox(
             "Selecione um jogador",
             player_names,
@@ -521,13 +628,16 @@ def analytics_section():
         # Selecionar atributos para visualizar
         available_attributes = [
             'MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR',
-            'PTS', 'TREB', 'ASS', 'RB', 'T', '3PTSC'
+            'PTS', 'RT', 'AS', 'RD', 'RO', 'BS', 'ST', 'RNK'
         ]
+        
+        # Filtrar atributos disponíveis pelo que está presente nos dados
+        available_attributes = [attr for attr in available_attributes if attr in df.columns]
         
         selected_attributes = st.multiselect(
             "Selecione os atributos para visualizar",
             available_attributes,
-            default=['MPTS', 'MASS', 'MRB'],
+            default=available_attributes[:3] if len(available_attributes) >= 3 else available_attributes,
             key="attributes_evolution"
         )
         
@@ -538,7 +648,7 @@ def analytics_section():
             
             # Mostrar tabela com dados completos
             st.subheader("Dados Detalhados")
-            player_data = df[df['Nome'] == selected_player]
+            player_data = df[df['NOME'] == selected_player]
             st.dataframe(player_data, use_container_width=True)
     
     with tab2:
@@ -566,10 +676,11 @@ def analytics_section():
             
             # Mostrar estatísticas resumidas
             st.subheader("Estatísticas Resumidas")
-            comparison_data = df[df['Nome'].isin(selected_players)]
-            summary = comparison_data.groupby('Nome')[selected_attribute].agg(['mean', 'min', 'max'])
+            comparison_data = df[df['NOME'].isin(selected_players)]
+            summary = comparison_data.groupby('NOME')[selected_attribute].agg(['mean', 'min', 'max'])
             summary.columns = ['Média', 'Mínimo', 'Máximo']
             st.dataframe(summary.round(2), use_container_width=True)
+
 def queries_section():
     """Seção de consultas por categoria com filtro de gênero"""
     st.header("🔍 Consultas por Categoria")
@@ -614,46 +725,48 @@ def queries_section():
         st.subheader("Estatísticas Detalhadas")
         # Dicionário completo de todas as estatísticas disponíveis
         all_stats = {
-            'Gerais': ['J', 'Mins', 'MMIN'],
-            'Pontuação': ['PTS', 'MPTS', '3PTSC', 'AT'],
-            'Lances Livres': ['LLT', 'LLC'],
-            'Rebotes': ['TREB', 'MTREB', 'RB', 'MRB', 'REBD', 'REBO'],
-            'Assistências': ['ASS', 'MASS'],
-            'Defesa': ['T', 'MT'],
-            'Erros': ['POP', 'MPOP', 'ERR', 'MERR', 'FP']
+            'Gerais': ['J', 'MIN', 'MMIN'],
+            'Pontuação': ['PTS', 'MPTS', '2FGP', '3FGP'],
+            'Rebotes': ['RT', 'MTREB', 'RO', 'RD', 'MRB'],
+            'Assistências': ['AS', 'MASS'],
+            'Defesa': ['BS', 'MT', 'ST'],
+            'Eficiência': ['RNK', 'FT'],
+            'Erros': ['TO', 'MERR', 'PF']
         }
         
         # Criar lista plana de todas as estatísticas
         all_stats_flat = []
         stats_descriptions = {
             'J': 'Jogos disputados',
-            'Mins': 'Minutos totais',
+            'MIN': 'Minutos totais',
             'MMIN': 'Média de minutos por jogo',
             'PTS': 'Pontos totais',
             'MPTS': 'Média de pontos por jogo',
-            'TREB': 'Total de rebotes',
+            'RT': 'Total de rebotes',
             'MTREB': 'Média de rebotes por jogo',
-            '3PTSC': 'Arremessos de 3 pontos convertidos',
-            'ASS': 'Total de assistências',
+            '2FGP': 'Percentual de arremessos de 2 pontos',
+            '3FGP': 'Percentual de arremessos de 3 pontos',
+            'AS': 'Total de assistências',
             'MASS': 'Média de assistências por jogo',
-            'RB': 'Rebotes',
+            'RO': 'Rebotes ofensivos',
+            'RD': 'Rebotes defensivos',
             'MRB': 'Média de rebotes',
-            'T': 'Tocos (bloqueios)',
+            'BS': 'Tocos (bloqueios)',
             'MT': 'Média de tocos',
-            'LLT': 'Lances livres tentados',
-            'LLC': 'Lances livres convertidos',
-            'AT': 'Arremessos tentados',
-            'REBD': 'Rebotes defensivos',
-            'REBO': 'Rebotes ofensivos',
-            'POP': 'Posse de bola perdida',
-            'MPOP': 'Média de posse de bola perdida',
-            'ERR': 'Erros',
+            'ST': 'Roubadas de bola',
+            'FT': 'Percentual de lances livres',
+            'PF': 'Faltas cometidas',
+            'TO': 'Turnovers',
             'MERR': 'Média de erros',
-            'FP': 'Faltas cometidas'
+            'RNK': 'Ranking (eficiência)'
         }
         
-        for stats in all_stats.values():
-            all_stats_flat.extend(stats)
+        # Filtrar apenas as estatísticas disponíveis nos dados
+        available_stats = []
+        for category, stats in all_stats.items():
+            available_in_category = [stat for stat in stats if stat in df.columns]
+            if available_in_category:
+                all_stats_flat.extend(available_in_category)
         
         # Seleção de estatísticas específicas
         selected_stats = st.multiselect(
@@ -716,11 +829,11 @@ def queries_section():
             st.metric("Total de Jogadores", total_players)
         
         with col2:
-            competicoes = result['Competição'].nunique()
+            competicoes = result['LIGA'].nunique()
             st.metric("Competições", competicoes)
         
         with col3:
-            equipes = result['Equipe'].nunique()
+            equipes = result['EQUIPE'].nunique()
             st.metric("Equipes", equipes)
         
         # Opção de download
@@ -732,6 +845,7 @@ def queries_section():
             help="Clique para baixar a lista completa em formato CSV",
             key="query_download"
         )
+
 def main():
     """Função principal da aplicação"""
     st.title("Projeto RADAR_CBB 🏀")
