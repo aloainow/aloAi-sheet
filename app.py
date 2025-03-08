@@ -539,6 +539,24 @@ def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, s
         # Primeiro, filtrar por gênero
         result = df[df['Gênero'] == gender].copy()
         
+        # Pré-processamento para limpar valores vazios
+        for col in result.columns:
+            if col not in base_columns:  # Não precisamos converter colunas de texto como NOME, EQUIPE, etc.
+                if pd.api.types.is_numeric_dtype(result[col]):
+                    # Para colunas já em formato numérico, apenas substituir NaN por 0
+                    result[col] = result[col].fillna(0)
+                else:
+                    # Para colunas em formato string, primeiro substituir strings vazias por NaN
+                    result[col] = result[col].replace(['', '-', 'nan', 'NA', '#N/A', '#N/D', 'NULL'], pd.NA)
+                    
+                    # Para colunas que deveriam ser numéricas, converter para numérico com tratamento de erros
+                    if col in ['PTS', 'MIN', 'RO', 'RD', 'RT', 'AS', 'PF', 'BS', 'ST', 'TO', 'RNK', 'J']:
+                        result[col] = pd.to_numeric(result[col], errors='coerce').fillna(0)
+                    # Para colunas de percentuais (que contêm '%'), tratar especialmente
+                    elif col in ['2FGP', '3FGP', 'FT']:
+                        # Manter como string por enquanto, será tratado durante a agregação
+                        pass
+        
         if selected_stats:
             # Se há estatísticas específicas selecionadas, usar estas (se estiverem disponíveis)
             valid_selected_stats = [col for col in selected_stats if col in available_columns]
@@ -573,8 +591,8 @@ def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, s
         
     except Exception as e:
         st.error(f"Erro ao processar estatísticas: {str(e)}")
+        st.write("Detalhes do problema:", e)
         return pd.DataFrame()
-
 # ================ PARTE 3 - FUNÇÕES DE VISUALIZAÇÃO E ANÁLISE ================
 
 def create_evolution_chart(df, player_name, attributes):
