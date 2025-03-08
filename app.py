@@ -76,10 +76,19 @@ def get_gender_selection(key_suffix):
 def load_data():
     """Carrega dados de múltiplos arquivos CSV da estrutura de diretórios"""
     try:
+        # Primeiramente, vamos verificar os diretórios existentes e listar o que temos
+        st.write("Verificando diretórios disponíveis...")
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        st.write(f"Diretório do aplicativo: {app_dir}")
+        
+        # Listar os diretórios no nível raiz
+        root_dirs = [d for d in os.listdir() if os.path.isdir(d)]
+        st.write(f"Diretórios disponíveis no root: {root_dirs}")
+        
         # Definir os tipos de dados para as colunas na nova estrutura
         dtype_dict = {
             'NOME': str,
-            'DATA DE NASCIMENTO': str,
+            'DATA DE NASCIMENTO': str,  # Mantém como string para evitar erros de parsing
             'ALTURA': str,
             'NACIONALIDADE': str,
             'POSIÇÃO': str,
@@ -103,11 +112,60 @@ def load_data():
             'RNK': 'float64'
         }
         
+        # Valores que devem ser tratados como NaN
+        na_values = ['', 'NA', 'nan', 'NaN', '#N/A', '#N/D', 'NULL', '-']
+        
         # Listas de todas as pastas e seus respectivos gêneros
-        folders = [
-            ('files/Atletas Masculinos', 'Masculino'),
-            ('files/Atletas Femininos', 'Feminino')
-        ]
+        # Ajuste o caminho com base na estrutura real
+        folders = []
+        
+        # Verificar "files" direto (sem o caminho "files/")
+        if os.path.exists("Atletas Masculinos"):
+            folders.append(('Atletas Masculinos', 'Masculino'))
+            st.success("Encontrado diretório 'Atletas Masculinos' no root")
+        
+        if os.path.exists("Atletas Femininos"):
+            folders.append(('Atletas Femininos', 'Feminino'))
+            st.success("Encontrado diretório 'Atletas Femininos' no root")
+            
+        # Verificar a pasta "files"
+        if os.path.exists("files"):
+            st.success("Pasta 'files' encontrada")
+            
+            if os.path.exists("files/Atletas Masculinos"):
+                folders.append(('files/Atletas Masculinos', 'Masculino'))
+                st.success("Encontrado diretório 'files/Atletas Masculinos'")
+            
+            if os.path.exists("files/Atletas Femininos"):
+                folders.append(('files/Atletas Femininos', 'Feminino'))
+                st.success("Encontrado diretório 'files/Atletas Femininos'")
+                
+            # Verifique se há uma estrutura diferente
+            files_dirs = [os.path.join("files", d) for d in os.listdir("files") if os.path.isdir(os.path.join("files", d))]
+            st.write(f"Diretórios dentro de 'files': {files_dirs}")
+        
+        if not folders:
+            st.error("Nenhum diretório de atletas encontrado. Verificando estrutura total...")
+            
+            # Busca completa por qualquer pasta que possa conter os CSVs
+            for root, dirs, files in os.walk('.'):
+                for dir in dirs:
+                    if 'masculino' in dir.lower() or 'male' in dir.lower():
+                        full_path = os.path.join(root, dir)
+                        folders.append((full_path, 'Masculino'))
+                        st.success(f"Encontrado diretório masculino: {full_path}")
+                    elif 'feminino' in dir.lower() or 'female' in dir.lower():
+                        full_path = os.path.join(root, dir)
+                        folders.append((full_path, 'Feminino'))
+                        st.success(f"Encontrado diretório feminino: {full_path}")
+            
+            if not folders:
+                # Último recurso: tentar qualquer pasta que tenha arquivos CSV
+                for root, dirs, files in os.walk('.'):
+                    csv_files = [f for f in files if f.endswith('.csv')]
+                    if csv_files:
+                        folders.append((root, 'Não especificado'))
+                        st.warning(f"Utilizando diretório com CSVs: {root}")
         
         # DataFrame para armazenar todos os dados
         all_data = []
@@ -126,6 +184,8 @@ def load_data():
                     st.warning(f"Nenhum arquivo CSV encontrado em: {folder_path}")
                     continue
                 
+                st.success(f"Encontrados {len(csv_files)} arquivos CSV em {folder_path}")
+                
                 # Processar cada arquivo CSV
                 for file_name in csv_files:
                     try:
@@ -138,7 +198,7 @@ def load_data():
                         df = pd.read_csv(
                             file_path,
                             dtype=dtype_dict,
-                            na_values=['', 'NA', 'nan', 'NaN', '#N/A', '#N/D', 'NULL'],
+                            na_values=na_values,
                             encoding='utf-8'
                         )
                         
@@ -182,48 +242,63 @@ def load_data():
                 df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
         
         # Calcular campos derivados (médias por jogo)
-        if 'J' in df.columns and 'J' in df.columns and df['J'].notna().any():
+        if 'J' in df.columns and df['J'].notna().any():
+            # Converter J para numérico, tratando valores nulos
+            df['J'] = pd.to_numeric(df['J'], errors='coerce').fillna(0)
+            
+            # Somente calcular médias onde J > 0
+            mask = df['J'] > 0
+            
             # Minutos por jogo
             if 'MIN' in df.columns:
-                df['MMIN'] = (df['MIN'] / df['J']).round(1)
+                df.loc[mask, 'MMIN'] = (df.loc[mask, 'MIN'] / df.loc[mask, 'J']).round(1)
+                df.loc[~mask, 'MMIN'] = 0
             
             # Pontos por jogo
             if 'PTS' in df.columns:
-                df['MPTS'] = (df['PTS'] / df['J']).round(1)
+                df.loc[mask, 'MPTS'] = (df.loc[mask, 'PTS'] / df.loc[mask, 'J']).round(1)
+                df.loc[~mask, 'MPTS'] = 0
             
             # Rebotes por jogo
             if 'RT' in df.columns:
-                df['MTREB'] = (df['RT'] / df['J']).round(1)
+                df.loc[mask, 'MTREB'] = (df.loc[mask, 'RT'] / df.loc[mask, 'J']).round(1)
+                df.loc[~mask, 'MTREB'] = 0
             
             # Assistências por jogo
             if 'AS' in df.columns:
-                df['MASS'] = (df['AS'] / df['J']).round(1)
+                df.loc[mask, 'MASS'] = (df.loc[mask, 'AS'] / df.loc[mask, 'J']).round(1)
+                df.loc[~mask, 'MASS'] = 0
             
             # Rebotes por jogo
             if 'RT' in df.columns:
-                df['MRB'] = (df['RT'] / df['J']).round(1)
+                df.loc[mask, 'MRB'] = (df.loc[mask, 'RT'] / df.loc[mask, 'J']).round(1)
+                df.loc[~mask, 'MRB'] = 0
             
             # Tocos por jogo
             if 'BS' in df.columns:
-                df['MT'] = (df['BS'] / df['J']).round(1)
+                df.loc[mask, 'MT'] = (df.loc[mask, 'BS'] / df.loc[mask, 'J']).round(1)
+                df.loc[~mask, 'MT'] = 0
             
             # Erros por jogo
             if 'TO' in df.columns:
-                df['MERR'] = (df['TO'] / df['J']).round(1)
+                df.loc[mask, 'MERR'] = (df.loc[mask, 'TO'] / df.loc[mask, 'J']).round(1)
+                df.loc[~mask, 'MERR'] = 0
         
         # Tratar valores ausentes
         for col in df.columns:
-            if df[col].dtype in ['float64', 'Int64']:
+            if pd.api.types.is_numeric_dtype(df[col]):
                 df[col] = df[col].fillna(0)
             else:
                 df[col] = df[col].fillna('')
         
+        st.success(f"Carregados dados de {len(df)} registros de jogadores")
         return df
     except Exception as e:
         st.error(f"Erro ao carregar arquivos: {str(e)}")
         st.write("Detalhes do erro para debug:", e)
+        import traceback
+        st.code(traceback.format_exc())
         return None
-
 def get_birth_year_filter(df, key_suffix):
     """
     Cria filtro por ano de nascimento com opções flexíveis
