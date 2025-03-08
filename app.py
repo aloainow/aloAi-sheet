@@ -323,51 +323,89 @@ def aggregate_player_data(df):
 def get_birth_year_filter(df, key_suffix):
     """
     Cria filtro por ano de nascimento com opções flexíveis
+    com tratamento de erros melhorado para datas no formato YYYY-MM-DD
     """
-    # Converter coluna de data de nascimento para datetime com tratamento de erros
-    df['DATA DE NASCIMENTO'] = pd.to_datetime(df['DATA DE NASCIMENTO'], errors='coerce')
-    
-    # Extrair anos únicos de nascimento, removendo valores nulos
-    anos_nascimento = sorted(df['DATA DE NASCIMENTO'].dt.year.dropna().unique(), reverse=True)
-    
-    # Se não houver anos válidos, retornar o DataFrame original
-    if not anos_nascimento:
-        st.warning("Não foram encontradas datas de nascimento válidas no conjunto de dados.")
+    try:
+        # Criar uma cópia para não alterar o DataFrame original
+        df_filtrado = df.copy()
+        
+        # Verificar se a coluna DATA DE NASCIMENTO existe
+        if 'DATA DE NASCIMENTO' not in df_filtrado.columns:
+            st.warning("Coluna 'DATA DE NASCIMENTO' não encontrada no conjunto de dados.")
+            return df
+            
+        # Substituir valores problemáticos antes da conversão
+        df_filtrado['DATA DE NASCIMENTO'] = df_filtrado['DATA DE NASCIMENTO'].replace(['-', '', 'x-x'], pd.NA)
+        
+        # Converter coluna de data de nascimento para datetime com tratamento de erros
+        df_filtrado['DATA DE NASCIMENTO'] = pd.to_datetime(df_filtrado['DATA DE NASCIMENTO'], errors='coerce')
+        
+        # Extrair anos únicos de nascimento, removendo valores nulos
+        anos_validos = df_filtrado['DATA DE NASCIMENTO'].dt.year.dropna()
+        
+        # Se não houver anos válidos, retornar o DataFrame original
+        if len(anos_validos) == 0:
+            st.warning("Não foram encontradas datas de nascimento válidas no conjunto de dados.")
+            return df
+            
+        anos_nascimento = sorted(anos_validos.unique(), reverse=True)
+        
+        # Criar opções de filtro
+        opcoes_filtro = ["Todos os anos"]
+        
+        # Adicionar opções para anos específicos
+        for ano in anos_nascimento:
+            if pd.notna(ano):  # Verificar se o ano não é NaN
+                opcoes_filtro.append(f"Nascidos em {int(ano)}")
+        
+        # Adicionar opções para ranges se tivermos anos válidos
+        if len(anos_nascimento) > 0:
+            ano_min, ano_max = int(min(anos_nascimento)), int(max(anos_nascimento))
+            opcoes_filtro.append(f"Nascidos até {ano_min}")
+            opcoes_filtro.append(f"Nascidos entre {ano_min} e {ano_max}")
+        
+        # Criar selectbox
+        filtro_selecionado = st.selectbox(
+            "Filtrar por Ano de Nascimento",
+            opcoes_filtro,
+            key=f"birth_year_filter_{key_suffix}"
+        )
+        
+        # Aplicar filtro selecionado
+        if filtro_selecionado == "Todos os anos":
+            return df
+        elif "Nascidos em" in filtro_selecionado:
+            try:
+                ano = int(filtro_selecionado.split()[-1])
+                # Filtrando apenas registros com data válida e ano igual ao selecionado
+                return df_filtrado[df_filtrado['DATA DE NASCIMENTO'].dt.year == ano]
+            except (ValueError, IndexError, TypeError) as e:
+                st.warning(f"Erro ao aplicar filtro '{filtro_selecionado}': {str(e)}. Mostrando todos os dados.")
+                return df
+        elif "Nascidos até" in filtro_selecionado:
+            try:
+                ano = int(filtro_selecionado.split()[-1])
+                # Filtrando apenas registros com data válida e ano menor ou igual ao selecionado
+                return df_filtrado[df_filtrado['DATA DE NASCIMENTO'].dt.year <= ano]
+            except (ValueError, IndexError, TypeError) as e:
+                st.warning(f"Erro ao aplicar filtro '{filtro_selecionado}': {str(e)}. Mostrando todos os dados.")
+                return df
+        elif "Nascidos entre" in filtro_selecionado:
+            try:
+                # Extrai os dois anos do formato "Nascidos entre X e Y"
+                partes = filtro_selecionado.split()
+                ano_inicio = int(partes[-3])
+                ano_fim = int(partes[-1])
+                # Filtrando apenas registros com data válida e ano entre os selecionados
+                return df_filtrado[df_filtrado['DATA DE NASCIMENTO'].dt.year.between(ano_inicio, ano_fim)]
+            except (ValueError, IndexError, TypeError) as e:
+                st.warning(f"Erro ao aplicar filtro '{filtro_selecionado}': {str(e)}. Mostrando todos os dados.")
+                return df
+        
         return df
-    
-    # Criar opções de filtro
-    opcoes_filtro = ["Todos os anos"]
-    
-    # Adicionar opções para anos específicos
-    for ano in anos_nascimento:
-        opcoes_filtro.append(f"Nascidos em {ano}")
-    
-    # Adicionar opções para ranges
-    ano_min, ano_max = min(anos_nascimento), max(anos_nascimento)
-    opcoes_filtro.append(f"Nascidos até {ano_min}")
-    opcoes_filtro.append(f"Nascidos entre {ano_min} e {ano_max}")
-    
-    # Criar selectbox
-    filtro_selecionado = st.selectbox(
-        "Filtrar por Ano de Nascimento",
-        opcoes_filtro,
-        key=f"birth_year_filter_{key_suffix}"
-    )
-    
-    # Aplicar filtro selecionado
-    if filtro_selecionado == "Todos os anos":
+    except Exception as e:
+        st.warning(f"Erro ao processar filtro por ano de nascimento: {str(e)}. Mostrando todos os dados.")
         return df
-    elif "Nascidos em" in filtro_selecionado:
-        ano = int(filtro_selecionado.split()[-1])
-        return df[df['DATA DE NASCIMENTO'].dt.year == ano]
-    elif "Nascidos até" in filtro_selecionado:
-        ano = int(filtro_selecionado.split()[-1])
-        return df[df['DATA DE NASCIMENTO'].dt.year <= ano]
-    elif "Nascidos entre" in filtro_selecionado:
-        anos = [int(x) for x in filtro_selecionado.split()[-3::2]]
-        return df[df['DATA DE NASCIMENTO'].dt.year.between(anos[0], anos[1])]
-    
-    return df
 
 # ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
 
