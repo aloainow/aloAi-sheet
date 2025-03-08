@@ -528,7 +528,8 @@ def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, s
             result = aggregate_player_data(result)
         
         # Ordenar por PTS por padrão, se disponível
-        if 
+        if 'PTS' in result.columns:
+            result = result.sort_values(by='PTS', ascending=False)
         
         return result
         
