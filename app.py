@@ -308,10 +308,91 @@ def aggregate_player_data(df):
             if col in pct_cols:
                 grouped[col] = (grouped[col] * 100).round(1).astype(str) + '%'
     
+    # Não adicionamos mais as colunas de médias derivadas nem a coluna de Temporadas
+    
+    # Resetamos o índice para ter um DataFrame normal
+    grouped = grouped.reset_index()
+    
+    # Removemos a coluna player_id pois não precisamos mais dela
+    if 'player_id' in grouped.columns:
+        grouped = grouped.drop('player_id', axis=1)
+    
+    return grouped
+    
+    # Criar dicionário de agregações
+    agg_dict = {}
+    
+    # Para cada coluna no DataFrame
+    for col in result.columns:
+        # Ignoramos o player_id na agregação
+        if col == 'player_id':
+            continue
+            
+        # Nome do jogador - usamos 'first' para manter um dos valores
+        elif col == 'NOME':
+            agg_dict[col] = 'first'
+            
+        # Colunas que devem ser somadas
+        elif col in sum_cols and col in result.columns:
+            agg_dict[col] = 'sum'
+            
+        # Colunas de informação - pegamos o valor mais recente (última temporada)
+        elif col in last_cols and col in result.columns:
+            agg_dict[col] = 'last'
+            
+        # Temporada - pegamos a mais recente
+        elif col == 'TEMPORADA':
+            agg_dict[col] = 'last'
+            
+        # Para o resto das colunas, usamos 'first' como placeholder
+        # As médias ponderadas serão calculadas separadamente
+        else:
+            agg_dict[col] = 'first'
+    
+    # Agrupar por ID do jogador
+    grouped = result.groupby('player_id').agg(agg_dict)
+    
+    # Calcular médias ponderadas para estatísticas e percentuais
+    all_weighted_cols = avg_cols + pct_cols
+    
+    for col in all_weighted_cols:
+        if col in result.columns:
+            # Converter percentagens para números
+            if col in pct_cols and result[col].dtype == 'object':
+                result[col] = result[col].str.rstrip('%').astype('float') / 100
+            
+            # Calcular médias ponderadas pelo número de jogos
+            weighted_values = []
+            
+            for player_id in grouped.index:
+                player_data = result[result['player_id'] == player_id]
+                
+                if 'J' not in player_data.columns or player_data['J'].sum() == 0:
+                    # Se não tiver jogos, usamos média simples
+                    weighted_avg = player_data[col].mean() if col in player_data.columns else 0
+                else:
+                    # Média ponderada pelo número de jogos
+                    if col in player_data.columns:
+                        weighted_avg = (player_data[col] * player_data['J']).sum() / player_data['J'].sum()
+                    else:
+                        weighted_avg = 0
+                
+                weighted_values.append(weighted_avg)
+            
+            # Atualizar o valor no DataFrame agrupado
+            grouped[col] = weighted_values
+            
+            # Converter de volta para o formato percentual se necessário
+            if col in pct_cols:
+                grouped[col] = (grouped[col] * 100).round(1).astype(str) + '%'
+    
     # Não adicionamos mais as colunas de médias derivadas
     
-    # Adicionamos uma coluna com a quantidade de temporadas
+    # Adicionamos uma coluna com a quantidade de temporadas - mas não exibimos nas consultas
     grouped['Temporadas'] = result.groupby('player_id').size()
+    
+    # Cria uma lista de colunas a exibir (excluindo Temporadas)
+    display_columns = [col for col in grouped.columns if col != 'Temporadas']
     
     # Resetamos o índice para ter um DataFrame normal
     grouped = grouped.reset_index()
@@ -489,11 +570,53 @@ def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, s
             'rebotes': [col for col in ['RT', 'RD', 'RO'] if col in available_columns],
             'assistencias': [col for col in ['AS'] if col in available_columns],
             'defesa': [col for col in ['BS', 'RD', 'ST'] if col in available_columns],
-            'geral': [col for col in ['J', 'MIN', 'Temporadas'] if col in available_columns],
+            'geral': [col for col in ['J', 'MIN'] if col in available_columns],
             'erros': [col for col in ['TO', 'PF'] if col in available_columns],
             'eficiencia': [col for col in ['2FGP', '3FGP', 'FT', 'RNK'] if col in available_columns],
             'produtividade': [col for col in ['PTS', 'AS', 'RT', 'BS'] if col in available_columns]
         }
+        
+        # Remover tipos de estatísticas vazios
+        stat_types = {k: v for k, v in stat_types.items() if v}
+        
+        # Primeiro, filtrar por gênero
+        result = df[df['Gênero'] == gender].copy()
+        
+        if selected_stats:
+            # Se há estatísticas específicas selecionadas, usar estas (se estiverem disponíveis)
+            valid_selected_stats = [col for col in selected_stats if col in available_columns]
+            columns = base_columns + valid_selected_stats
+            if valid_selected_stats:  # Apenas filtrar se houver estatísticas válidas selecionadas
+                result = result[columns].copy()
+        elif stat_types_selected:
+            # Se há tipos de estatísticas selecionados, pegar todas as estatísticas desses tipos
+            stat_columns = []
+            for stat_type in stat_types_selected:
+                if stat_type in stat_types:
+                    stat_columns.extend(stat_types[stat_type])
+            columns = base_columns + list(dict.fromkeys(stat_columns))  # Remove duplicatas
+            result = result[columns].copy()
+        else:
+            # Caso contrário, mostrar todas as estatísticas disponíveis
+            all_stats = []
+            for stats in stat_types.values():
+                all_stats.extend(stats)
+            columns = base_columns + list(dict.fromkeys(all_stats))
+            result = result[columns].copy()
+        
+        # Agregar dados por jogador se solicitado
+        if aggregate:
+            result = aggregate_player_data(result)
+        
+        # Ordenar por PTS por padrão, se disponível
+        if 'PTS' in result.columns:
+            result = result.sort_values(by='PTS', ascending=False)
+        
+        return result
+        
+    except Exception as e:
+        st.error(f"Erro ao processar estatísticas: {str(e)}")
+        return pd.DataFrame()
         
         # Remover tipos de estatísticas vazios
         stat_types = {k: v for k, v in stat_types.items() if v}
@@ -686,6 +809,10 @@ def text_query_section():
         result = process_text_query_with_aggregation(df, query_text, aggregate=aggregate)
         
         if result is not None and not result.empty:
+            # Remover a coluna Temporadas se existir
+            if 'Temporadas' in result.columns:
+                result = result.drop('Temporadas', axis=1)
+                
             total_results = len(result)
             
             # Limitar número de resultados mostrados
@@ -701,6 +828,25 @@ def text_query_section():
             
             # Mostrar resultados
             st.write(f"📊 Resultados encontrados: {total_results} {'jogadores' if aggregate else 'registros'}")
+            
+            try:
+                st.dataframe(
+                    data=result_displayed,
+                    use_container_width=True,
+                    height=500
+                )
+            except Exception as e:
+                st.error(f"Erro ao exibir dados: {str(e)}")
+                st.write(result_displayed.to_html(index=False), unsafe_allow_html=True)
+            
+            # Opção de download
+            st.download_button(
+                label="📥 Download resultados (CSV)",
+                data=result.to_csv(index=False, encoding='utf-8').encode('utf-8'),
+                file_name='resultados_consulta.csv',
+                mime='text/csv',
+                key="text_query_download"
+            )
             
             try:
                 st.dataframe(
@@ -894,7 +1040,7 @@ def queries_section():
         
         # Dicionário completo de estatísticas disponíveis (sem médias derivadas)
         all_stats = {
-            'Gerais': [col for col in ['J', 'MIN', 'Temporadas'] if col in available_columns],
+            'Gerais': [col for col in ['J', 'MIN'] if col in available_columns],
             'Pontuação': [col for col in ['PTS', '2FGP', '3FGP'] if col in available_columns],
             'Rebotes': [col for col in ['RT', 'RO', 'RD'] if col in available_columns],
             'Assistências': [col for col in ['AS'] if col in available_columns],
@@ -926,8 +1072,7 @@ def queries_section():
             'FT': 'Percentual de lances livres',
             'PF': 'Faltas cometidas',
             'TO': 'Turnovers (erros)',
-            'RNK': 'Ranking (eficiência)',
-            'Temporadas': 'Número de temporadas'
+            'RNK': 'Ranking (eficiência)'
         }
         
         # Seleção de estatísticas específicas
@@ -976,6 +1121,120 @@ def queries_section():
         
         message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} {'jogadores' if aggregate else 'registros'})"
         st.write(message)
+        
+        try:
+            st.dataframe(
+                data=result_displayed,
+                use_container_width=True,
+                height=500
+            )
+        except Exception as e:
+            st.error(f"Erro ao exibir dados: {str(e)}")
+            st.write(result_displayed.to_html(index=False), unsafe_allow_html=True)
+        
+        # Estatísticas resumidas
+        st.write("### Resumo")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total de Jogadores" if aggregate else "Total de Registros", total_players)
+        
+        if 'LIGA' in result.columns:
+            with col2:
+                competicoes = result['LIGA'].nunique()
+                st.metric("Competições", competicoes)
+        
+        if 'EQUIPE' in result.columns:
+            with col3:
+                equipes = result['EQUIPE'].nunique()
+                st.metric("Equipes", equipes)
+        
+        # Opção de download
+        st.download_button(
+            label="📥 Download lista completa (CSV)",
+            data=result.to_csv(index=False, encoding='utf-8').encode('utf-8'),
+            file_name='jogadores_estatisticas.csv',
+            mime='text/csv',
+            help="Clique para baixar a lista completa em formato CSV",
+            key="query_download"
+        )
+        
+        # Remover categorias vazias
+        all_stats = {k: v for k, v in all_stats.items() if v}
+        
+        # Criar lista plana de todas as estatísticas disponíveis
+        all_stats_flat = []
+        for category_stats in all_stats.values():
+            all_stats_flat.extend(category_stats)
+        
+        stats_descriptions = {
+            'J': 'Jogos disputados',
+            'MIN': 'Minutos totais',
+            'PTS': 'Pontos totais',
+            'RT': 'Total de rebotes',
+            '2FGP': 'Percentual de arremessos de 2 pontos',
+            '3FGP': 'Percentual de arremessos de 3 pontos',
+            'AS': 'Total de assistências',
+            'RO': 'Rebotes ofensivos',
+            'RD': 'Rebotes defensivos',
+            'BS': 'Tocos (bloqueios)',
+            'ST': 'Roubadas de bola',
+            'FT': 'Percentual de lances livres',
+            'PF': 'Faltas cometidas',
+            'TO': 'Turnovers (erros)',
+            'RNK': 'Ranking (eficiência)'
+        }
+        
+        # Seleção de estatísticas específicas
+        if all_stats_flat:
+            selected_stats = st.multiselect(
+                "Selecione Estatísticas Específicas (opcional)",
+                sorted(all_stats_flat),
+                format_func=lambda x: f"{x} - {stats_descriptions.get(x, x)}",
+                key="specific_stats"
+            )
+        else:
+            st.warning("Não há estatísticas disponíveis para seleção")
+            selected_stats = []
+    
+    # Converter categorias selecionadas para o formato do dicionário
+    query_map = {
+        "Pontuação": "pontos",
+        "Rebotes": "rebotes",
+        "Assistências": "assistencias",
+        "Defesa": "defesa",
+        "Geral": "geral",
+        "Erros": "erros",
+        "Eficiência": "eficiencia",
+        "Produtividade": "produtividade"
+    }
+    
+    selected_types = [query_map[cat] for cat in selected_categories if cat in query_map]
+    
+    # Processar consulta com a nova função que suporta agregação
+    result = process_stats_query_with_aggregation(df, gender, selected_types, selected_stats, aggregate=aggregate)
+    
+    if result is not None and not result.empty:
+        total_players = len(result)
+        
+        # Adicionar slider para número de resultados
+        num_results = st.slider(
+            "Número de resultados a mostrar",
+            min_value=1,
+            max_value=total_players,
+            value=min(50, total_players),
+            key="query_results_slider"
+        )
+        
+        # Mostrar resultados
+        result_displayed = result.head(num_results)
+        
+        message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} {'jogadores' if aggregate else 'registros'})"
+        st.write(message)
+        
+        # Remover a coluna Temporadas dos resultados de exibição
+        if 'Temporadas' in result.columns:
+            result = result.drop('Temporadas', axis=1)
         
         try:
             st.dataframe(
