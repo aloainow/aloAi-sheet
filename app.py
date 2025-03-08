@@ -720,19 +720,29 @@ def text_query_section():
     if df is None:
         return
     
-    # Usar chave única para seleção de gênero nesta seção
-    gender = get_gender_selection("text_query")
+    # Criar coluna para filtros
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
     
-    # Filtrar dados por gênero antes de processar
-    df = df[df['Gênero'] == gender]
+    with filter_col1:
+        # Seleção de gênero
+        gender = get_gender_selection("text_query")
+        # Filtrar por gênero
+        df = df[df['Gênero'] == gender]
     
-    # Adicionar opção para agregar por jogador ou mostrar por temporada
-    aggregation_option = st.radio(
-        "Modo de exibição",
-        ["Compilado da carreira", "Por temporada"],
-        horizontal=True,
-        key="text_query_aggregation"
-    )
+    with filter_col2:
+        # Seleção de país
+        country = get_country_selection(df, "text_query")
+        # Filtrar por país
+        df = filter_by_country(df, country)
+    
+    with filter_col3:
+        # Adicionar opção para agregar por jogador ou mostrar por temporada
+        aggregation_option = st.radio(
+            "Modo de exibição",
+            ["Compilado da carreira", "Por temporada"],
+            horizontal=True,
+            key="text_query_aggregation"
+        )
     
     # Determinar se deve agregar com base na opção selecionada
     aggregate = (aggregation_option == "Compilado da carreira")
@@ -812,7 +822,7 @@ def analytics_section():
         return
     
     # Criar coluna para filtros
-    filter_col1, filter_col2 = st.columns(2)
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
     
     with filter_col1:
         # Seleção de gênero
@@ -823,6 +833,12 @@ def analytics_section():
     with filter_col2:
         # Filtro por ano de nascimento
         df = get_birth_year_filter(df, "analytics")
+    
+    with filter_col3:
+        # Seleção de país
+        country = get_country_selection(df, "analytics")
+        # Filtrar por país
+        df = filter_by_country(df, country)
     
     # Criar tabs para diferentes tipos de análise
     tab1, tab2 = st.tabs(["Evolução Individual", "Comparação entre Jogadores"])
@@ -916,7 +932,7 @@ def analytics_section():
             st.info("Selecione ao menos um jogador para comparação.")
 
 def queries_section():
-    """Seção de consultas por categoria com filtro de gênero"""
+    """Seção de consultas por categoria com filtro de gênero, ano de nascimento e país"""
     st.header("🔍 Consultas por Categoria")
     
     # Carregar dados
@@ -925,7 +941,7 @@ def queries_section():
         return
     
     # Criar coluna para filtros
-    filter_col1, filter_col2 = st.columns(2)
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
     
     with filter_col1:
         # Seleção de gênero
@@ -936,6 +952,12 @@ def queries_section():
     with filter_col2:
         # Filtro por ano de nascimento
         df = get_birth_year_filter(df, "queries")
+    
+    with filter_col3:
+        # Seleção de país
+        country = get_country_selection(df, "queries")
+        # Filtrar por país
+        df = filter_by_country(df, country)
     
     # Adicionar opção para agregar por jogador ou mostrar por temporada
     aggregation_option = st.radio(
@@ -1096,6 +1118,200 @@ def queries_section():
             help="Clique para baixar a lista completa em formato CSV",
             key="query_download"
         )
+
+# Adicione este dicionário para mapear os códigos de liga para países
+PAIS_MAPPING = {
+    'ARG': 'Argentina',
+    'AUS': 'Austrália',
+    'BEL': 'Bélgica',
+    'BIH': 'Bósnia e Herzegovina',
+    'BOL': 'Bolívia', 
+    'BRA': 'Brasil',
+    'BUL': 'Bulgária',
+    'CHI': 'Chile',
+    'CHN': 'China',
+    'COL': 'Colômbia',
+    'CRO': 'Croácia',
+    'CZE': 'República Tcheca',
+    'DOM': 'República Dominicana',
+    'ESP': 'Espanha',
+    'FRA': 'França',
+    'GER': 'Alemanha',
+    'GRE': 'Grécia',
+    'HUN': 'Hungria',
+    'IDN': 'Indonésia',
+    'ISL': 'Islândia',
+    'ISR': 'Israel',
+    'ITA': 'Itália',
+    'JPN': 'Japão',
+    'KOS': 'Kosovo',
+    'LAT': 'Letônia',
+    'LTU': 'Lituânia',
+    'MEX': 'México',
+    'MKD': 'Macedônia do Norte',
+    'NCAA': 'Estados Unidos (NCAA)',
+    'NIC': 'Nicarágua',
+    'PAR': 'Paraguai',
+    'POL': 'Polônia',
+    'POR': 'Portugal',
+    'PUR': 'Porto Rico',
+    'QAT': 'Catar',
+    'ROM': 'Romênia',
+    'RUS': 'Rússia',
+    'SLO': 'Eslovênia',
+    'SRB': 'Sérvia',
+    'SUI': 'Suíça',
+    'TUR': 'Turquia',
+    'URU': 'Uruguai',
+    'USA': 'Estados Unidos',
+    'VEN': 'Venezuela',
+    'NAIA': 'Estados Unidos (NAIA)',
+    'JUCO': 'Estados Unidos (JUCO)',
+    'G League': 'Estados Unidos (G League)',
+    'NBA': 'Estados Unidos (NBA)',
+    'WNBA': 'Estados Unidos (WNBA)',
+    'EUROL': 'Euroliga',
+    'MZRKL': 'Liga Adriática',
+    'LAM': 'Liga das Américas',
+    'LSA': 'Liga Sul-Americana',
+    'BCL': 'Basketball Champions League',
+    'Eurocup': 'EuroCup',
+    'GOOD': 'Competição Internacional',
+    'ANGT': 'Adidas Next Generation Tournament',
+    'EYBL': 'European Youth Basketball League',
+    'CEBL': 'Canadian Elite Basketball League',
+    'USPO': 'Universidade Canadense',
+    'FEL': 'FIBA Europe League',
+    'IntCup': 'Copa Internacional',
+    'AlKo': 'Liga Adriático-Kosovo',
+    'ADR': 'Liga Adriática'
+}
+
+def get_country_from_league(league_code):
+    """
+    Extrai o código do país do código da liga.
+    
+    Args:
+        league_code (str): Código da liga (ex: "ESP-1", "NCAA1")
+        
+    Returns:
+        str: Código do país ou da liga principal
+    """
+    if not league_code or pd.isna(league_code):
+        return "Desconhecido"
+        
+    # Para ligas com formato PAÍS-NÍVEL
+    if "-" in league_code:
+        return league_code.split("-")[0]
+    
+    # Para ligas específicas
+    if any(code in league_code for code in ["NCAA", "JUCO", "NAIA", "NBA", "WNBA"]):
+        return league_code.split("1")[0] if "1" in league_code else league_code
+    
+    # Para competições continentais e outras ligas
+    for code in ["EUROL", "MZRKL", "LAM", "LSA", "BCL", "Eurocup", "GOOD", "ANGT", "EYBL", "CEBL", "USPO", "FEL", "IntCup", "AlKo", "ADR"]:
+        if code in league_code:
+            return code
+    
+    # Se não conseguir identificar, retorna o próprio código
+    return league_code
+
+def get_latest_league(df, group_by='NOME'):
+    """
+    Obtém a liga da última temporada de cada jogador.
+    
+    Args:
+        df (pd.DataFrame): DataFrame com os dados dos jogadores
+        group_by (str): Coluna para agrupar os dados (normalmente 'NOME')
+        
+    Returns:
+        dict: Dicionário com o nome do jogador e o código da liga da última temporada
+    """
+    latest_leagues = {}
+    
+    for name, group in df.groupby(group_by):
+        # Ordenar por temporada
+        sorted_group = group.sort_values(by='TEMPORADA')
+        if not sorted_group.empty:
+            # Obter a liga da última temporada
+            latest_league = sorted_group.iloc[-1]['LIGA']
+            latest_leagues[name] = latest_league
+    
+    return latest_leagues
+
+def get_countries_from_data(df):
+    """
+    Obtém todos os países únicos presentes nos dados.
+    
+    Args:
+        df (pd.DataFrame): DataFrame com os dados dos jogadores
+        
+    Returns:
+        list: Lista de países únicos
+    """
+    latest_leagues = get_latest_league(df)
+    
+    countries = []
+    for league in latest_leagues.values():
+        country_code = get_country_from_league(league)
+        country_name = PAIS_MAPPING.get(country_code, country_code)
+        if country_name not in countries:
+            countries.append(country_name)
+    
+    # Ordenar países alfabeticamente
+    countries.sort()
+    
+    # Adicionar opção "Todos os países" no início
+    countries = ["Todos os países"] + countries
+    
+    return countries
+
+def get_country_selection(df, key_suffix):
+    """
+    Função centralizada para seleção de país.
+    
+    Args:
+        df (pd.DataFrame): DataFrame com os dados dos jogadores
+        key_suffix (str): Sufixo para a chave do componente
+        
+    Returns:
+        str: País selecionado
+    """
+    countries = get_countries_from_data(df)
+    return st.selectbox(
+        "Selecione o País",
+        countries,
+        key=f"country_select_{key_suffix}"
+    )
+
+def filter_by_country(df, country):
+    """
+    Filtra os dados pelo país selecionado.
+    
+    Args:
+        df (pd.DataFrame): DataFrame com os dados dos jogadores
+        country (str): País selecionado
+        
+    Returns:
+        pd.DataFrame: DataFrame filtrado
+    """
+    if country == "Todos os países":
+        return df
+    
+    # Obtém a liga da última temporada de cada jogador
+    latest_leagues = get_latest_league(df)
+    
+    # Cria uma lista para armazenar os jogadores que estão no país selecionado
+    players_in_country = []
+    
+    for player_name, league in latest_leagues.items():
+        country_code = get_country_from_league(league)
+        country_name = PAIS_MAPPING.get(country_code, country_code)
+        if country_name == country:
+            players_in_country.append(player_name)
+    
+    # Filtrar apenas jogadores no país selecionado
+    return df[df['NOME'].isin(players_in_country)]
 
 def main():
     """Função principal da aplicação"""
