@@ -1,4 +1,5 @@
 # ================ PARTE 1 - IMPORTAÇÕES E CONFIGURAÇÕES ================
+```python
 import os
 import pandas as pd
 import numpy as np
@@ -224,7 +225,156 @@ def load_data():
         st.error(f"Erro ao carregar arquivos: {str(e)}")
         st.write("Detalhes do erro para debug:", e)
         return None
-
+def aggregate_player_data(df):
+    """
+    Agrega os dados de jogadores por nome, criando uma visão única por jogador
+    com estatísticas compiladas da carreira.
+    
+    Parameters:
+    df (pandas.DataFrame): DataFrame com os dados dos jogadores
+    
+    Returns:
+    pandas.DataFrame: DataFrame com dados agregados (um registro por jogador)
+    """
+    if df.empty:
+        return df
+    
+    # Cria uma cópia para não modificar o dataframe original
+    result = df.copy()
+    
+    # Primeiro, vamos adicionar um ID temporário para cada jogador único
+    player_ids = {}
+    player_id = 1
+    result['player_id'] = 0
+    
+    for idx, row in result.iterrows():
+        player_name = row['NOME']
+        if player_name not in player_ids:
+            player_ids[player_name] = player_id
+            player_id += 1
+        result.at[idx, 'player_id'] = player_ids[player_name]
+    
+    # Listas de colunas para diferentes tipos de agregação
+    # Colunas para calcular a média (estatísticas por jogo)
+    avg_cols = ['MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR']
+    
+    # Colunas para somar (estatísticas totais)
+    sum_cols = ['J', 'PTS', 'RT', 'AS', 'RO', 'RD', 'BS', 'ST', 'TO']
+    
+    # Colunas a serem calculadas como média ponderada pelo número de jogos
+    weighted_cols = ['2FGP', '3FGP', 'FT', 'RNK']
+    
+    # Colunas que devem pegar o valor mais recente
+    last_cols = ['POSIÇÃO', 'NACIONALIDADE', 'EQUIPE', 'LIGA', 'ALTURA', 'Gênero']
+    
+    # Criar dicionário de agregações
+    agg_dict = {}
+    
+    # Para cada coluna no DataFrame
+    for col in result.columns:
+        # Ignoramos o player_id na agregação
+        if col == 'player_id':
+            continue
+            
+        # Nome do jogador - usamos 'first' para manter um dos valores
+        elif col == 'NOME':
+            agg_dict[col] = 'first'
+            
+        # Data de nascimento - usamos 'first' para manter um dos valores
+        elif col == 'DATA DE NASCIMENTO':
+            agg_dict[col] = 'first'
+            
+        # Estatísticas de médias por jogo - calculamos a média
+        elif col in avg_cols and col in result.columns:
+            agg_dict[col] = 'mean'
+            
+        # Estatísticas absolutas - somamos os valores
+        elif col in sum_cols and col in result.columns:
+            agg_dict[col] = 'sum'
+            
+        # Estatísticas de porcentagem - calculamos depois
+        elif col in weighted_cols and col in result.columns:
+            # Estas serão calculadas depois como média ponderada
+            pass
+            
+        # Colunas de informação - pegamos o valor mais recente (última temporada)
+        elif col in last_cols and col in result.columns:
+            agg_dict[col] = 'last'
+            
+        # Temporada - pegamos a mais recente
+        elif col == 'TEMPORADA':
+            agg_dict[col] = 'last'
+            
+        # Para qualquer outra coluna, tentamos usar 'first'
+        else:
+            agg_dict[col] = 'first'
+    
+    # Agrupar por ID do jogador
+    grouped = result.groupby('player_id').agg(agg_dict)
+    
+    # Calcular médias ponderadas para porcentagens
+    for col in weighted_cols:
+        if col in result.columns:
+            # Para porcentagens que estão em formato de string com '%'
+            if col in ['2FGP', '3FGP', 'FT'] and result[col].dtype == 'object':
+                # Convertemos para numérico, removendo o '%'
+                result[col] = result[col].str.rstrip('%').astype('float') / 100
+                
+            # Calculamos a média ponderada pelo número de jogos
+            weighted_avg = []
+            for player_id in grouped.index:
+                player_data = result[result['player_id'] == player_id]
+                
+                # Se não tiver a coluna J (jogos), usamos a média simples
+                if 'J' not in player_data.columns or player_data['J'].sum() == 0:
+                    if col in player_data.columns:
+                        avg = player_data[col].mean()
+                    else:
+                        avg = 0
+                else:
+                    # Média ponderada pelo número de jogos
+                    if col in player_data.columns:
+                        avg = (player_data[col] * player_data['J']).sum() / player_data['J'].sum()
+                    else:
+                        avg = 0
+                
+                weighted_avg.append(avg)
+            
+            # Adicionamos ao DataFrame agrupado
+            grouped[col] = weighted_avg
+            
+            # Convertemos de volta para o formato percentual se necessário
+            if col in ['2FGP', '3FGP', 'FT']:
+                grouped[col] = (grouped[col] * 100).round(1).astype(str) + '%'
+    
+    # Recalcular as médias por jogo que não existiam no DataFrame original
+    if 'J' in grouped.columns and grouped['J'].sum() > 0:
+        if 'PTS' in grouped.columns and 'MPTS' not in grouped.columns:
+            grouped['MPTS'] = (grouped['PTS'] / grouped['J']).round(1)
+        
+        if 'RT' in grouped.columns and 'MTREB' not in grouped.columns:
+            grouped['MTREB'] = (grouped['RT'] / grouped['J']).round(1)
+        
+        if 'AS' in grouped.columns and 'MASS' not in grouped.columns:
+            grouped['MASS'] = (grouped['AS'] / grouped['J']).round(1)
+        
+        if 'BS' in grouped.columns and 'MT' not in grouped.columns:
+            grouped['MT'] = (grouped['BS'] / grouped['J']).round(1)
+        
+        if 'TO' in grouped.columns and 'MERR' not in grouped.columns:
+            grouped['MERR'] = (grouped['TO'] / grouped['J']).round(1)
+    
+    # Adicionamos uma coluna com a quantidade de temporadas
+    grouped['Temporadas'] = result.groupby('player_id').size()
+    
+    # Resetamos o índice para ter um DataFrame normal
+    grouped = grouped.reset_index()
+    
+    # Removemos a coluna player_id pois não precisamos mais dela
+    if 'player_id' in grouped.columns:
+        grouped = grouped.drop('player_id', axis=1)
+    
+    return grouped
 def get_birth_year_filter(df, key_suffix):
     """
     Cria filtro por ano de nascimento com opções flexíveis
@@ -276,8 +426,8 @@ def get_birth_year_filter(df, key_suffix):
 
 # ================ PARTE 2 - FUNÇÕES DE PROCESSAMENTO ================
 
-def process_text_query(df, query_text):
-    """Processa consultas em texto livre"""
+def process_text_query_with_aggregation(df, query_text, aggregate=True):
+    """Processa consultas em texto livre com opção de agregação por jogador"""
     query_text = query_text.lower()
     result = df.copy()
     
@@ -331,22 +481,22 @@ def process_text_query(df, query_text):
             
             # Identificar estatística específica
             if "pont" in query_text:
-                result = result.nlargest(top_n, 'MPTS')
+                result = result.sort_values('MPTS', ascending=False)
             elif "rebote" in query_text:
-                result = result.nlargest(top_n, 'MTREB')
+                result = result.sort_values('MTREB', ascending=False)
             elif "assist" in query_text:
-                result = result.nlargest(top_n, 'MASS')
+                result = result.sort_values('MASS', ascending=False)
             elif "block" in query_text or "toco" in query_text:
-                result = result.nlargest(top_n, 'MT')
+                result = result.sort_values('MT', ascending=False)
             elif "eficiencia" in query_text or "ranking" in query_text:
-                result = result.nlargest(top_n, 'RNK')
+                result = result.sort_values('RNK', ascending=False)
             else:
                 # Score geral combinando principais estatísticas
                 main_stats = ['MPTS', 'MTREB', 'MASS']
                 available_stats = [col for col in main_stats if col in result.columns]
                 if available_stats:
                     result['Score_Geral'] = result[available_stats].mean(axis=1)
-                    result = result.nlargest(top_n, 'Score_Geral')
+                    result = result.sort_values('Score_Geral', ascending=False)
         
         # Filtrar por nacionalidade se mencionada
         for country in ["brasil", "brasileiro", "brasileira", "brazilian"]:
@@ -364,14 +514,21 @@ def process_text_query(df, query_text):
             if pos_name in query_text:
                 result = result[result['POSIÇÃO'].str.contains('|'.join(pos_codes), case=False, regex=True)]
         
+        # Agregar dados por jogador se solicitado
+        if aggregate:
+            result = aggregate_player_data(result)
+            
+            # Limitar para top_n se for uma consulta de top
+            if "top" in query_text or "melhores" in query_text:
+                result = result.head(top_n)
+        
         return result.copy()
     
     except Exception as e:
         st.error(f"Erro ao processar consulta: {str(e)}")
         return df.copy()
-
-def process_stats_query(df, gender, stat_types_selected=None, selected_stats=None):
-    """Processa consulta de estatísticas com filtro de gênero e múltiplas estatísticas"""
+def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, selected_stats=None, aggregate=True):
+    """Processa consulta de estatísticas com filtro de gênero, múltiplas estatísticas e agregação por jogador"""
     try:
         # Colunas base sempre mostradas
         base_columns = ['NOME', 'EQUIPE', 'LIGA', 'POSIÇÃO', 'NACIONALIDADE', 'Gênero']
@@ -382,7 +539,7 @@ def process_stats_query(df, gender, stat_types_selected=None, selected_stats=Non
             'rebotes': ['RT', 'MTREB', 'RD', 'RO', 'MRB'],
             'assistencias': ['AS', 'MASS'],
             'defesa': ['BS', 'MT', 'RD', 'ST'],
-            'geral': ['J', 'MIN', 'MMIN'],
+            'geral': ['J', 'MIN', 'MMIN', 'Temporadas'],
             'erros': ['TO', 'MERR', 'PF'],
             'eficiencia': ['2FGP', '3FGP', 'FT', 'RNK'],
             'produtividade': ['MPTS', 'MASS', 'MTREB', 'MT']
@@ -415,6 +572,10 @@ def process_stats_query(df, gender, stat_types_selected=None, selected_stats=Non
             columns = base_columns + list(dict.fromkeys(all_stats))
             result = result[columns].copy()
         
+        # Agregar dados por jogador se solicitado
+        if aggregate:
+            result = aggregate_player_data(result)
+        
         # Ordenar por MPTS por padrão, se disponível
         if 'MPTS' in result.columns:
             result = result.sort_values(by='MPTS', ascending=False)
@@ -424,7 +585,6 @@ def process_stats_query(df, gender, stat_types_selected=None, selected_stats=Non
     except Exception as e:
         st.error(f"Erro ao processar estatísticas: {str(e)}")
         return pd.DataFrame()
-
 # ================ PARTE 3 - FUNÇÕES DE VISUALIZAÇÃO E ANÁLISE ================
 
 def create_evolution_chart(df, player_name, attributes):
@@ -530,6 +690,17 @@ def text_query_section():
     # Filtrar dados por gênero antes de processar
     df = df[df['Gênero'] == gender]
     
+    # Adicionar opção para agregar por jogador ou mostrar por temporada
+    aggregation_option = st.radio(
+        "Modo de exibição",
+        ["Compilado da carreira", "Por temporada"],
+        horizontal=True,
+        key="text_query_aggregation"
+    )
+    
+    # Determinar se deve agregar com base na opção selecionada
+    aggregate = (aggregation_option == "Compilado da carreira")
+    
     # Campo de texto para consulta
     query_text = st.text_input(
         "Digite sua consulta em texto livre",
@@ -549,8 +720,8 @@ def text_query_section():
         """)
     
     if query_text:
-        # Processar consulta
-        result = process_text_query(df, query_text)
+        # Processar consulta com a nova função que suporta agregação
+        result = process_text_query_with_aggregation(df, query_text, aggregate=aggregate)
         
         if result is not None and not result.empty:
             total_results = len(result)
@@ -567,7 +738,7 @@ def text_query_section():
             result_displayed = result.head(num_results)
             
             # Mostrar resultados
-            st.write(f"📊 Resultados encontrados: {total_results} jogadores")
+            st.write(f"📊 Resultados encontrados: {total_results} {'jogadores' if aggregate else 'registros'}")
             
             try:
                 st.dataframe(
@@ -587,7 +758,6 @@ def text_query_section():
                 mime='text/csv',
                 key="text_query_download"
             )
-
 # ================ PARTE 4 - SEÇÕES PRINCIPAIS E MAIN ================
 
 def analytics_section():
@@ -704,6 +874,17 @@ def queries_section():
         # Filtro por ano de nascimento
         df = get_birth_year_filter(df, "queries")
     
+    # Adicionar opção para agregar por jogador ou mostrar por temporada
+    aggregation_option = st.radio(
+        "Modo de exibição",
+        ["Compilado da carreira", "Por temporada"],
+        horizontal=True,
+        key="queries_aggregation"
+    )
+    
+    # Determinar se deve agregar com base na opção selecionada
+    aggregate = (aggregation_option == "Compilado da carreira")
+    
     # Criar duas colunas para as categorias
     col1, col2 = st.columns([0.4, 0.6])
     
@@ -726,7 +907,7 @@ def queries_section():
         st.subheader("Estatísticas Detalhadas")
         # Dicionário completo de todas as estatísticas disponíveis
         all_stats = {
-            'Gerais': ['J', 'MIN', 'MMIN'],
+            'Gerais': ['J', 'MIN', 'MMIN', 'Temporadas'],
             'Pontuação': ['PTS', 'MPTS', '2FGP', '3FGP'],
             'Rebotes': ['RT', 'MTREB', 'RO', 'RD', 'MRB'],
             'Assistências': ['AS', 'MASS'],
@@ -759,7 +940,8 @@ def queries_section():
             'PF': 'Faltas cometidas',
             'TO': 'Turnovers',
             'MERR': 'Média de erros',
-            'RNK': 'Ranking (eficiência)'
+            'RNK': 'Ranking (eficiência)',
+            'Temporadas': 'Número de temporadas'
         }
         
         # Filtrar apenas as estatísticas disponíveis nos dados
@@ -791,8 +973,8 @@ def queries_section():
     
     selected_types = [query_map[cat] for cat in selected_categories if cat in query_map]
     
-    # Processar consulta
-    result = process_stats_query(df, gender, selected_types, selected_stats)
+    # Processar consulta com a nova função que suporta agregação
+    result = process_stats_query_with_aggregation(df, gender, selected_types, selected_stats, aggregate=aggregate)
     
     if result is not None and not result.empty:
         total_players = len(result)
@@ -809,7 +991,7 @@ def queries_section():
         # Mostrar resultados
         result_displayed = result.head(num_results)
         
-        message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} jogadores)"
+        message = f"📊 Resultados encontrados: (Mostrando {len(result_displayed)} de {total_players} {'jogadores' if aggregate else 'registros'})"
         st.write(message)
         
         try:
@@ -827,7 +1009,7 @@ def queries_section():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric("Total de Jogadores", total_players)
+            st.metric("Total de Jogadores" if aggregate else "Total de Registros", total_players)
         
         with col2:
             competicoes = result['LIGA'].nunique()
@@ -846,7 +1028,6 @@ def queries_section():
             help="Clique para baixar a lista completa em formato CSV",
             key="query_download"
         )
-
 def main():
     """Função principal da aplicação"""
     st.title("Projeto RADAR_CBB 🏀")
