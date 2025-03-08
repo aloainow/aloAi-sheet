@@ -227,7 +227,7 @@ def load_data():
 def aggregate_player_data(df):
     """
     Agrega os dados de jogadores por nome, criando uma visão única por jogador
-    com estatísticas compiladas da carreira.
+    com estatísticas compiladas da carreira usando médias ponderadas pelo número de jogos.
     
     Parameters:
     df (pandas.DataFrame): DataFrame com os dados dos jogadores
@@ -253,18 +253,23 @@ def aggregate_player_data(df):
             player_id += 1
         result.at[idx, 'player_id'] = player_ids[player_name]
     
-    # Listas de colunas para diferentes tipos de agregação
-    # Colunas para calcular a média (estatísticas por jogo)
-    avg_cols = ['MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR']
+    # Identificar diferentes tipos de colunas
+    # Sabemos que os valores no CSV já são médias por temporada
     
-    # Colunas para somar (estatísticas totais)
-    sum_cols = ['J', 'PTS', 'RT', 'AS', 'RO', 'RD', 'BS', 'ST', 'TO']
+    # Colunas que devem ser somadas
+    sum_cols = ['J']  # Jogos é a única coluna que deve ser realmente somada
     
-    # Colunas a serem calculadas como média ponderada pelo número de jogos
-    weighted_cols = ['2FGP', '3FGP', 'FT', 'RNK']
+    # Colunas de médias nos arquivos CSV - precisamos fazer média ponderada por jogos
+    avg_cols = ['MIN', 'PTS', 'RO', 'RD', 'RT', 'AS', 'PF', 'BS', 'ST', 'TO', 'RNK']
+    
+    # Colunas que são médias derivadas - serão recalculadas depois
+    derived_cols = ['MMIN', 'MPTS', 'MTREB', 'MASS', 'MRB', 'MT', 'MERR']
+    
+    # Colunas que são percentuais - também precisam de média ponderada
+    pct_cols = ['2FGP', '3FGP', 'FT']
     
     # Colunas que devem pegar o valor mais recente
-    last_cols = ['POSIÇÃO', 'NACIONALIDADE', 'EQUIPE', 'LIGA', 'ALTURA', 'Gênero']
+    last_cols = ['POSIÇÃO', 'NACIONALIDADE', 'EQUIPE', 'LIGA', 'ALTURA', 'Gênero', 'DATA DE NASCIMENTO']
     
     # Criar dicionário de agregações
     agg_dict = {}
@@ -279,22 +284,9 @@ def aggregate_player_data(df):
         elif col == 'NOME':
             agg_dict[col] = 'first'
             
-        # Data de nascimento - usamos 'first' para manter um dos valores
-        elif col == 'DATA DE NASCIMENTO':
-            agg_dict[col] = 'first'
-            
-        # Estatísticas de médias por jogo - calculamos a média
-        elif col in avg_cols and col in result.columns:
-            agg_dict[col] = 'mean'
-            
-        # Estatísticas absolutas - somamos os valores
+        # Colunas que devem ser somadas
         elif col in sum_cols and col in result.columns:
             agg_dict[col] = 'sum'
-            
-        # Estatísticas de porcentagem - calculamos depois
-        elif col in weighted_cols and col in result.columns:
-            # Estas serão calculadas depois como média ponderada
-            pass
             
         # Colunas de informação - pegamos o valor mais recente (última temporada)
         elif col in last_cols and col in result.columns:
@@ -304,64 +296,67 @@ def aggregate_player_data(df):
         elif col == 'TEMPORADA':
             agg_dict[col] = 'last'
             
-        # Para qualquer outra coluna, tentamos usar 'first'
+        # Para o resto das colunas, usamos 'first' como placeholder
+        # As médias ponderadas serão calculadas separadamente
         else:
             agg_dict[col] = 'first'
     
     # Agrupar por ID do jogador
     grouped = result.groupby('player_id').agg(agg_dict)
     
-    # Calcular médias ponderadas para porcentagens
-    for col in weighted_cols:
+    # Calcular médias ponderadas para estatísticas e percentuais
+    all_weighted_cols = avg_cols + pct_cols
+    
+    for col in all_weighted_cols:
         if col in result.columns:
-            # Para porcentagens que estão em formato de string com '%'
-            if col in ['2FGP', '3FGP', 'FT'] and result[col].dtype == 'object':
-                # Convertemos para numérico, removendo o '%'
+            # Converter percentagens para números
+            if col in pct_cols and result[col].dtype == 'object':
                 result[col] = result[col].str.rstrip('%').astype('float') / 100
-                
-            # Calculamos a média ponderada pelo número de jogos
-            weighted_avg = []
+            
+            # Calcular médias ponderadas pelo número de jogos
+            weighted_values = []
+            
             for player_id in grouped.index:
                 player_data = result[result['player_id'] == player_id]
                 
-                # Se não tiver a coluna J (jogos), usamos a média simples
                 if 'J' not in player_data.columns or player_data['J'].sum() == 0:
-                    if col in player_data.columns:
-                        avg = player_data[col].mean()
-                    else:
-                        avg = 0
+                    # Se não tiver jogos, usamos média simples
+                    weighted_avg = player_data[col].mean() if col in player_data.columns else 0
                 else:
                     # Média ponderada pelo número de jogos
                     if col in player_data.columns:
-                        avg = (player_data[col] * player_data['J']).sum() / player_data['J'].sum()
+                        weighted_avg = (player_data[col] * player_data['J']).sum() / player_data['J'].sum()
                     else:
-                        avg = 0
+                        weighted_avg = 0
                 
-                weighted_avg.append(avg)
+                weighted_values.append(weighted_avg)
             
-            # Adicionamos ao DataFrame agrupado
-            grouped[col] = weighted_avg
+            # Atualizar o valor no DataFrame agrupado
+            grouped[col] = weighted_values
             
-            # Convertemos de volta para o formato percentual se necessário
-            if col in ['2FGP', '3FGP', 'FT']:
+            # Converter de volta para o formato percentual se necessário
+            if col in pct_cols:
                 grouped[col] = (grouped[col] * 100).round(1).astype(str) + '%'
     
-    # Recalcular as médias por jogo que não existiam no DataFrame original
+    # Recalcular as médias por jogo derivadas se necessário
     if 'J' in grouped.columns and grouped['J'].sum() > 0:
         if 'PTS' in grouped.columns and 'MPTS' not in grouped.columns:
-            grouped['MPTS'] = (grouped['PTS'] / grouped['J']).round(1)
+            grouped['MPTS'] = grouped['PTS']
         
         if 'RT' in grouped.columns and 'MTREB' not in grouped.columns:
-            grouped['MTREB'] = (grouped['RT'] / grouped['J']).round(1)
+            grouped['MTREB'] = grouped['RT']
         
         if 'AS' in grouped.columns and 'MASS' not in grouped.columns:
-            grouped['MASS'] = (grouped['AS'] / grouped['J']).round(1)
+            grouped['MASS'] = grouped['AS']
         
         if 'BS' in grouped.columns and 'MT' not in grouped.columns:
-            grouped['MT'] = (grouped['BS'] / grouped['J']).round(1)
+            grouped['MT'] = grouped['BS']
         
         if 'TO' in grouped.columns and 'MERR' not in grouped.columns:
-            grouped['MERR'] = (grouped['TO'] / grouped['J']).round(1)
+            grouped['MERR'] = grouped['TO']
+        
+        if 'MIN' in grouped.columns and 'MMIN' not in grouped.columns:
+            grouped['MMIN'] = grouped['MIN']
     
     # Adicionamos uma coluna com a quantidade de temporadas
     grouped['Temporadas'] = result.groupby('player_id').size()
