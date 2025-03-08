@@ -134,11 +134,11 @@ def load_data():
                         # Extrair o nome do jogador do nome do arquivo (removendo a extensão .csv)
                         player_name = os.path.splitext(file_name)[0]
                         
-                        # Ler o arquivo CSV
+                        # Ler o arquivo CSV - adicionando "-" aos valores NA
                         df = pd.read_csv(
                             file_path,
                             dtype=dtype_dict,
-                            na_values=['', 'NA', 'nan', 'NaN', '#N/A', '#N/D', 'NULL'],
+                            na_values=['', 'NA', 'nan', 'NaN', '#N/A', '#N/D', 'NULL', '-'],
                             encoding='utf-8'
                         )
                         
