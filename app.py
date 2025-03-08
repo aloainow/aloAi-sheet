@@ -280,34 +280,51 @@ def aggregate_player_data(df):
     
     for col in all_weighted_cols:
         if col in result.columns:
-            # Converter percentagens para números
-            if col in pct_cols and result[col].dtype == 'object':
-                result[col] = result[col].str.rstrip('%').astype('float') / 100
-            
-            # Calcular médias ponderadas pelo número de jogos
-            weighted_values = []
-            
-            for player_id in grouped.index:
-                player_data = result[result['player_id'] == player_id]
+            try:
+                # Manipular percentagens de forma segura
+                if col in pct_cols:
+                    # Remover o símbolo % e converter para float
+                    # Primeiro remover valores NA/None
+                    temp_col = result[col].copy()
+                    # Substituir valores NA e None por "0.0%"
+                    temp_col = temp_col.fillna("0.0%")
+                    # Agora é seguro remover o % e converter para float
+                    result[col] = pd.to_numeric(temp_col.str.rstrip('%'), errors='coerce') / 100
                 
-                if 'J' not in player_data.columns or player_data['J'].sum() == 0:
-                    # Se não tiver jogos, usamos média simples
-                    weighted_avg = player_data[col].mean() if col in player_data.columns else 0
-                else:
-                    # Média ponderada pelo número de jogos
-                    if col in player_data.columns:
-                        weighted_avg = (player_data[col] * player_data['J']).sum() / player_data['J'].sum()
+                # Calcular médias ponderadas pelo número de jogos
+                weighted_values = []
+                
+                for player_id in grouped.index:
+                    player_data = result[result['player_id'] == player_id]
+                    
+                    if 'J' not in player_data.columns or player_data['J'].sum() == 0:
+                        # Se não tiver jogos, usamos média simples
+                        weighted_avg = player_data[col].mean() if col in player_data.columns else 0
                     else:
-                        weighted_avg = 0
+                        # Média ponderada pelo número de jogos
+                        if col in player_data.columns:
+                            # Excluir valores NaN ao calcular a média ponderada
+                            mask = ~player_data[col].isna()
+                            if mask.any():
+                                weighted_avg = (player_data.loc[mask, col] * player_data.loc[mask, 'J']).sum() / player_data.loc[mask, 'J'].sum()
+                            else:
+                                weighted_avg = 0
+                        else:
+                            weighted_avg = 0
+                    
+                    weighted_values.append(weighted_avg)
                 
-                weighted_values.append(weighted_avg)
-            
-            # Atualizar o valor no DataFrame agrupado
-            grouped[col] = weighted_values
-            
-            # Converter de volta para o formato percentual se necessário
-            if col in pct_cols:
-                grouped[col] = (grouped[col] * 100).round(1).astype(str) + '%'
+                # Atualizar o valor no DataFrame agrupado
+                grouped[col] = weighted_values
+                
+                # Converter de volta para o formato percentual se necessário
+                if col in pct_cols:
+                    grouped[col] = (grouped[col] * 100).round(1).astype(str) + '%'
+            except Exception as e:
+                # Em caso de erro, apenas manter o valor original
+                print(f"Erro ao processar coluna {col}: {e}")
+                # Usar o primeiro valor disponível 
+                grouped[col] = result.groupby('player_id')[col].first()
     
     # Não adicionamos mais as colunas de médias derivadas nem a coluna de Temporadas
     
