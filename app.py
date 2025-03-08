@@ -536,7 +536,8 @@ def process_stats_query_with_aggregation(df, gender, stat_types_selected=None, s
         available_columns = df.columns.tolist()
         
         # Colunas base sempre mostradas (apenas as disponíveis)
-        base_columns = [col for col in ['NOME', 'EQUIPE', 'LIGA', 'POSIÇÃO', 'NACIONALIDADE', 'Gênero'] if col in available_columns]
+        # Adicionando 'DATA DE NASCIMENTO' à lista de colunas base
+        base_columns = [col for col in ['NOME', 'DATA DE NASCIMENTO', 'EQUIPE', 'LIGA', 'POSIÇÃO', 'NACIONALIDADE', 'Gênero'] if col in available_columns]
         
         # Dicionário completo de tipos de estatísticas (apenas as disponíveis e sem médias derivadas)
         stat_types = {
