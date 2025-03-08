@@ -7,8 +7,26 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# Configuração da página
-st.set_page_config(page_title="Projeto RADAR_CBB 🏀", page_icon="🏀", layout="wide")  
+# Desabilitar o botão de fork
+st.set_page_config(
+    page_title="RADAR CBB",
+    page_icon="🏀",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://www.instagram.com/cbbasketeball/',
+        'Report a bug': 'https://www.instagram.com/cbbasketeball/',
+        'About': 'App desenvolvido para CBB por Igor Gomes'
+    }
+)
+
+# Configuração adicional para ocultar o botão de fork
+# Adicione isso logo após o st.set_page_config()
+st.markdown("""
+<style>
+    .stDeployButton {display:none;}
+</style>
+""", unsafe_allow_html=True)
 
 # Barra lateral com informações das colunas
 with st.sidebar:
