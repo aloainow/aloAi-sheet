@@ -691,14 +691,15 @@ def create_evolution_chart(df, player_name, attributes):
         st.error(f"Erro ao criar gráfico de evolução: {str(e)}")
         return None
 
-def create_comparison_chart(df, players, attribute):
-    """Cria gráfico de comparação de um atributo entre diferentes jogadores"""
+def create_comparison_chart(df, players, attributes):
+    """Cria gráfico de comparação (radar) de múltiplos atributos entre diferentes jogadores"""
     try:
-        # Verificar se o atributo está disponível
-        if attribute not in df.columns:
-            st.error(f"O atributo '{attribute}' não está disponível nos dados")
-            return None
-            
+        # Verificar se os atributos estão disponíveis
+        for attribute in attributes:
+            if attribute not in df.columns:
+                st.error(f"O atributo '{attribute}' não está disponível nos dados")
+                return None
+                
         # Filtrar dados dos jogadores selecionados
         comparison_data = df[df['NOME'].isin(players)]
         
@@ -706,30 +707,51 @@ def create_comparison_chart(df, players, attribute):
             st.error("Não foram encontrados dados para os jogadores selecionados")
             return None
         
-        # Tratar percentuais para plotagem
-        if attribute in ['2FGP', '3FGP', 'FT'] and attribute in comparison_data.columns:
-            if comparison_data[attribute].dtype == 'object':
-                comparison_data[attribute] = comparison_data[attribute].str.rstrip('%').astype('float')
+        # Tratar percentuais para plotagem e normalizar valores
+        max_values = {}
+        for attribute in attributes:
+            if attribute in ['2FGP', '3FGP', 'FT'] and attribute in comparison_data.columns:
+                if comparison_data[attribute].dtype == 'object':
+                    comparison_data[attribute] = comparison_data[attribute].str.rstrip('%').astype('float')
+            
+            # Calcular valor máximo para normalização
+            max_values[attribute] = comparison_data[attribute].max() if comparison_data[attribute].max() > 0 else 1
         
-        fig = px.bar(
-            comparison_data,
-            x='NOME',
-            y=attribute,
-            color='LIGA',
-            barmode='group',
-            title=f'Comparação de {attribute}',
-            labels={
-                'NOME': 'Jogador',
-                attribute: 'Valor'
-            },
-            height=500
+        # Criar figura
+        fig = go.Figure()
+        
+        # Adicionar um traço (trace) para cada jogador
+        for player in players:
+            player_data = comparison_data[comparison_data['NOME'] == player]
+            if not player_data.empty:
+                # Criar lista de valores normalizados para o radar chart
+                values = [player_data[attr].iloc[0] / max_values[attr] * 100 for attr in attributes]
+                
+                # Adicionar traço para o jogador
+                fig.add_trace(go.Scatterpolar(
+                    r=values,
+                    theta=attributes,
+                    fill='toself',
+                    name=player
+                ))
+        
+        # Atualizar layout
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 100]
+                )
+            ),
+            title=f'Comparação de Estatísticas entre Jogadores',
+            showlegend=True,
+            height=600
         )
         
         return fig
     except Exception as e:
         st.error(f"Erro ao criar gráfico de comparação: {str(e)}")
         return None
-
 def text_query_section():
     """Seção de consultas por texto livre"""
     st.header("🔍 Consulta por Texto")
@@ -905,51 +927,60 @@ def analytics_section():
             player_data = df[df['NOME'] == selected_player]
             st.dataframe(player_data, use_container_width=True)
     
-    with tab2:
-        st.subheader("Comparação entre Jogadores")
+   with tab2:
+    st.subheader("Comparação entre Jogadores")
+    
+    # Selecionar múltiplos jogadores
+    selected_players = st.multiselect(
+        "Selecione os jogadores para comparar",
+        player_names,
+        default=player_names[:2] if len(player_names) >= 2 else player_names,
+        key="players_comparison"
+    )
+    
+    # Obter atributos disponíveis para os jogadores selecionados
+    if selected_players:
+        players_data = df[df['NOME'].isin(selected_players)]
+        available_comparison_attrs = []
         
-        # Selecionar múltiplos jogadores
-        selected_players = st.multiselect(
-            "Selecione os jogadores para comparar",
-            player_names,
-            default=player_names[:2] if len(player_names) >= 2 else player_names,
-            key="players_comparison"
-        )
+        # Verificar quais atributos existem e têm dados para todos os jogadores selecionados
+        for attr in potential_attrs:
+            if attr in players_data.columns and not players_data[attr].isnull().all():
+                available_comparison_attrs.append(attr)
         
-        # Obter atributos disponíveis para os jogadores selecionados
-        if selected_players:
-            players_data = df[df['NOME'].isin(selected_players)]
-            available_comparison_attrs = []
+        # Selecionar múltiplos atributos para comparação
+        if available_comparison_attrs:
+            selected_attributes = st.multiselect(
+                "Selecione os atributos para comparar",
+                available_comparison_attrs,
+                default=available_comparison_attrs[:5] if len(available_comparison_attrs) >= 5 else available_comparison_attrs,
+                key="attributes_comparison"
+            )
             
-            # Verificar quais atributos existem e têm dados para todos os jogadores selecionados
-            for attr in potential_attrs:
-                if attr in players_data.columns and not players_data[attr].isnull().all():
-                    available_comparison_attrs.append(attr)
-            
-            # Selecionar atributo para comparação
-            if available_comparison_attrs:
-                selected_attribute = st.selectbox(
-                    "Selecione o atributo para comparar",
-                    available_comparison_attrs,
-                    key="attribute_comparison"
-                )
-                
-                chart = create_comparison_chart(df, selected_players, selected_attribute)
+            if selected_attributes:
+                chart = create_comparison_chart(df, selected_players, selected_attributes)
                 if chart:
                     st.plotly_chart(chart, use_container_width=True)
                 
                 # Mostrar estatísticas resumidas
                 st.subheader("Estatísticas Resumidas")
                 comparison_data = df[df['NOME'].isin(selected_players)]
-                if selected_attribute in comparison_data.columns:
-                    summary = comparison_data.groupby('NOME')[selected_attribute].agg(['mean', 'min', 'max'])
-                    summary.columns = ['Média', 'Mínimo', 'Máximo']
-                    st.dataframe(summary.round(2), use_container_width=True)
+                summary_table = pd.DataFrame(index=selected_players)
+                
+                for attr in selected_attributes:
+                    if attr in comparison_data.columns:
+                        for player in selected_players:
+                            player_data = comparison_data[comparison_data['NOME'] == player]
+                            if not player_data.empty:
+                                summary_table.loc[player, attr] = player_data[attr].iloc[0]
+                
+                st.dataframe(summary_table.round(2), use_container_width=True)
             else:
-                st.warning("Não há atributos numéricos disponíveis para comparação entre os jogadores selecionados.")
+                st.info("Selecione ao menos um atributo para comparação.")
         else:
-            st.info("Selecione ao menos um jogador para comparação.")
-
+            st.warning("Não há atributos numéricos disponíveis para comparação entre os jogadores selecionados.")
+    else:
+        st.info("Selecione ao menos um jogador para comparação.")
 def queries_section():
     """Seção de consultas por categoria com filtro de gênero, ano de nascimento e país"""
     st.header("🔍 Consultas por Categoria")
