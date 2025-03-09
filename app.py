@@ -695,14 +695,19 @@ def create_evolution_chart(df, player_name, attributes):
         st.error(f"Erro ao criar gráfico de evolução: {str(e)}")
         return None
 
-def create_comparison_chart(df, players, attribute):
-    """Cria gráfico de comparação de um atributo entre diferentes jogadores"""
+def create_comparison_chart(df, players, attributes):
+    """Cria gráfico de comparação de atributos entre diferentes jogadores"""
     try:
-        # Verificar se o atributo está disponível
-        if attribute not in df.columns:
-            st.error(f"O atributo '{attribute}' não está disponível nos dados")
-            return None
+        # Se apenas um atributo for fornecido e não for uma lista, transforme-o em lista
+        if not isinstance(attributes, list):
+            attributes = [attributes]
             
+        # Verificar se os atributos estão disponíveis
+        for attr in attributes:
+            if attr not in df.columns:
+                st.error(f"O atributo '{attr}' não está disponível nos dados")
+                return None
+                
         # Filtrar dados dos jogadores selecionados
         comparison_data = df[df['NOME'].isin(players)]
         
@@ -710,69 +715,42 @@ def create_comparison_chart(df, players, attribute):
             st.error("Não foram encontrados dados para os jogadores selecionados")
             return None
         
-        # Tratar percentuais para plotagem e garantir valores numéricos
-        if attribute in ['2FGP', '3FGP', 'FT'] and attribute in comparison_data.columns:
-            if comparison_data[attribute].dtype == 'object':
-                comparison_data[attribute] = comparison_data[attribute].str.rstrip('%').astype('float')
+        # Tratar percentuais para plotagem
+        percentage_cols = ['2FGP', '3FGP', 'FT']
+        for attr in attributes:
+            if attr in percentage_cols and attr in comparison_data.columns:
+                if comparison_data[attr].dtype == 'object':
+                    comparison_data[attr] = comparison_data[attr].str.rstrip('%').astype('float')
         
-        # Garantir que o atributo seja numérico
-        comparison_data[attribute] = pd.to_numeric(comparison_data[attribute], errors='coerce').fillna(0)
-        
-        # Se for apenas uma comparação simples de um atributo, usar gráfico de barras
-        if len(players) <= 1 or attribute is None:
+        # Se for apenas um jogador ou um atributo, usar gráfico de barras
+        if len(players) <= 1 or len(attributes) == 1:
+            main_attr = attributes[0]  # Usamos o primeiro atributo para o gráfico de barras
             fig = px.bar(
                 comparison_data,
                 x='NOME',
-                y=attribute,
+                y=main_attr,
                 color='LIGA',
                 barmode='group',
-                title=f'Comparação de {attribute}',
+                title=f'Comparação de {main_attr}',
                 labels={
                     'NOME': 'Jogador',
-                    attribute: 'Valor'
+                    main_attr: 'Valor'
                 },
                 height=500
             )
             return fig
             
-        # Coletar atributos comuns para o radar
-        radar_attrs = []
-        common_attrs = ['PTS', 'RT', 'AS', 'BS', 'ST']
-        
-        # Adicionar o atributo selecionado primeiro
-        if attribute not in radar_attrs:
-            radar_attrs.append(attribute)
-            
-        # Adicionar outros atributos comuns
-        for attr in common_attrs:
-            if attr in comparison_data.columns and attr not in radar_attrs:
-                # Verificar se os dados são numéricos e converter se necessário
-                comparison_data[attr] = pd.to_numeric(comparison_data[attr], errors='coerce').fillna(0)
-                radar_attrs.append(attr)
-        
-        # Se tiver menos de 3 atributos, usar gráfico de barras
-        if len(radar_attrs) < 3:
-            fig = px.bar(
-                comparison_data,
-                x='NOME',
-                y=attribute,
-                color='LIGA',
-                barmode='group',
-                title=f'Comparação de {attribute}',
-                labels={
-                    'NOME': 'Jogador',
-                    attribute: 'Valor'
-                },
-                height=500
-            )
-            return fig
+        # Usar radar chart para múltiplos atributos
+        # Garantir que todos os atributos são numéricos
+        for attr in attributes:
+            comparison_data[attr] = pd.to_numeric(comparison_data[attr], errors='coerce').fillna(0)
         
         # Criar figura para o radar
         fig = go.Figure()
         
         # Calcular valores máximos para normalização
         max_values = {}
-        for attr in radar_attrs:
+        for attr in attributes:
             max_val = comparison_data[attr].max()
             max_values[attr] = max_val if max_val > 0 else 1
         
@@ -781,7 +759,7 @@ def create_comparison_chart(df, players, attribute):
             player_data = comparison_data[comparison_data['NOME'] == player]
             if not player_data.empty:
                 values = []
-                for attr in radar_attrs:
+                for attr in attributes:
                     # Garantir que o valor é numérico
                     val = float(player_data[attr].iloc[0])
                     # Normalizar para escala 0-100
@@ -791,7 +769,7 @@ def create_comparison_chart(df, players, attribute):
                 # Adicionar ao gráfico
                 fig.add_trace(go.Scatterpolar(
                     r=values,
-                    theta=radar_attrs,
+                    theta=attributes,
                     fill='toself',
                     name=player
                 ))
@@ -814,16 +792,17 @@ def create_comparison_chart(df, players, attribute):
         st.error(f"Erro ao criar gráfico de comparação: {str(e)}")
         # Em caso de erro, tentar um gráfico de barras simples
         try:
+            main_attr = attributes[0] if isinstance(attributes, list) else attributes
             fig = px.bar(
                 comparison_data,
                 x='NOME',
-                y=attribute,
+                y=main_attr,
                 color='LIGA',
                 barmode='group',
-                title=f'Comparação de {attribute}',
+                title=f'Comparação de {main_attr}',
                 labels={
                     'NOME': 'Jogador',
-                    attribute: 'Valor'
+                    main_attr: 'Valor'
                 },
                 height=500
             )
@@ -931,7 +910,7 @@ def text_query_section():
 
 # ================ PARTE 4 - SEÇÕES PRINCIPAIS E MAIN ================
 
-def analytics_section():
+pydef analytics_section():
     """Seção de análises e visualizações"""
     st.header("📊 Análise de Evolução")
     
@@ -963,52 +942,13 @@ def analytics_section():
     tab1, tab2 = st.tabs(["Evolução Individual", "Comparação entre Jogadores"])
     
     with tab1:
-        st.subheader("Evolução Individual do Jogador")
-        
-        # Selecionar jogador
-        player_names = sorted(df['NOME'].unique())
-        selected_player = st.selectbox(
-            "Selecione um jogador",
-            player_names,
-            key="player_select_evolution"
-        )
-        
-        # Obter colunas disponíveis para esse jogador
-        player_data = df[df['NOME'] == selected_player]
-        available_attrs = []
-        
-        # Lista de atributos potenciais (só estatísticas originais, sem médias derivadas)
-        potential_attrs = [
-            'PTS', 'RT', 'AS', 'RD', 'RO', 'BS', 'ST', 'RNK'
-        ]
-        
-        # Verificar quais atributos realmente existem nos dados
-        for attr in potential_attrs:
-            if attr in player_data.columns and not player_data[attr].isnull().all():
-                available_attrs.append(attr)
-        
-        # Selecionar atributos para visualizar
-        selected_attributes = st.multiselect(
-            "Selecione os atributos para visualizar",
-            available_attrs,
-            default=available_attrs[:3] if len(available_attrs) >= 3 else available_attrs,
-            key="attributes_evolution"
-        )
-        
-        if selected_attributes:
-            chart = create_evolution_chart(df, selected_player, selected_attributes)
-            if chart:
-                st.plotly_chart(chart, use_container_width=True)
-            
-            # Mostrar tabela com dados completos
-            st.subheader("Dados Detalhados")
-            player_data = df[df['NOME'] == selected_player]
-            st.dataframe(player_data, use_container_width=True)
+        # ... código existente para tab1 ...
     
     with tab2:
         st.subheader("Comparação entre Jogadores")
         
         # Selecionar múltiplos jogadores
+        player_names = sorted(df['NOME'].unique())
         selected_players = st.multiselect(
             "Selecione os jogadores para comparar",
             player_names,
@@ -1020,6 +960,9 @@ def analytics_section():
         if selected_players:
             players_data = df[df['NOME'].isin(selected_players)]
             available_comparison_attrs = []
+            
+            # Lista de atributos potenciais
+            potential_attrs = ['PTS', 'RT', 'AS', 'RD', 'RO', 'BS', 'ST', 'RNK']
             
             # Verificar quais atributos existem e têm dados para todos os jogadores selecionados
             for attr in potential_attrs:
@@ -1035,10 +978,16 @@ def analytics_section():
                     key="attributes_comparison"
                 )
                 
+                # NOVO CÓDIGO:
                 if selected_attributes:
                     chart = create_comparison_chart(df, selected_players, selected_attributes)
-                    if chart:
-                        st.plotly_chart(chart, use_container_width=True)
+                    if chart is not None:
+                        try:
+                            st.plotly_chart(chart, use_container_width=True)
+                        except Exception as e:
+                            st.error(f"Erro ao renderizar o gráfico: {str(e)}")
+                            st.write("Tente selecionar atributos diferentes ou outros jogadores.")
+                
                     
                     # Mostrar estatísticas resumidas
                     st.subheader("Estatísticas Resumidas")
