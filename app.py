@@ -942,7 +942,8 @@ def analytics_section():
     tab1, tab2 = st.tabs(["Evolução Individual", "Comparação entre Jogadores"])
     
     with tab1:
-    st.subheader("Evolução Individual")
+        st.subheader("Evolução Individual")
+        st.write("Placeholder for evolution analysis")
     
     # Selecionar um jogador
     player_names = sorted(df['NOME'].unique())
