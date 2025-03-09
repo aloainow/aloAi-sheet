@@ -943,8 +943,50 @@ def analytics_section():
     
     with tab1:
         st.subheader("Evolução Individual")
-        # Add your tab1 implementation here
-        st.write("Esta seção será implementada em breve.")
+        
+        # Selecionar um jogador
+        player_names = sorted(df['NOME'].unique())
+        selected_player = st.selectbox(
+            "Selecione um jogador para ver sua evolução",
+            player_names,
+            key="player_evolution"
+        )
+        
+        # Obter dados do jogador
+        if selected_player:
+            player_data = df[df['NOME'] == selected_player]
+            available_attrs = []
+            
+            # Lista de atributos potenciais
+            potential_attrs = ['PTS', 'RT', 'AS', 'RD', 'RO', 'BS', 'ST', 'RNK', '3FGP', '2FGP', 'FT']
+            
+            # Verificar quais atributos existem e têm dados variáveis
+            for attr in potential_attrs:
+                if attr in player_data.columns and not player_data[attr].isnull().all():
+                    # Verificar se há variação nos dados (mais de um valor único)
+                    if len(player_data[attr].unique()) > 1:
+                        available_attrs.append(attr)
+            
+            # Selecionar atributos para visualização
+            if available_attrs:
+                selected_attributes = st.multiselect(
+                    "Selecione os atributos para visualizar a evolução",
+                    available_attrs,
+                    default=available_attrs[:3] if len(available_attrs) >= 3 else available_attrs,
+                    key="attributes_evolution"
+                )
+                
+                # Criar gráfico de evolução
+                if selected_attributes:
+                    chart = create_evolution_chart(df, selected_player, selected_attributes)
+                    if chart is not None:
+                        st.plotly_chart(chart, use_container_width=True)
+                    else:
+                        st.warning("Não foi possível criar o gráfico com os dados selecionados.")
+                else:
+                    st.info("Selecione pelo menos um atributo para visualizar.")
+            else:
+                st.warning("Não há dados suficientes para criar um gráfico de evolução para este jogador.")
     
     with tab2:
         st.subheader("Comparação entre Jogadores")
@@ -958,9 +1000,15 @@ def analytics_section():
             key="players_comparison"
         )
         
-        # Obter atributos disponíveis para os jogadores selecionados
+        # Criar um DataFrame com dados agregados de carreira para comparação
         if selected_players:
-            players_data = df[df['NOME'].isin(selected_players)]
+            # Criar uma cópia apenas com os jogadores selecionados
+            players_data = df[df['NOME'].isin(selected_players)].copy()
+            
+            # Agregar dados para mostrar carreira completa
+            career_data = aggregate_player_data(players_data)
+            
+            # Obter atributos disponíveis para os jogadores selecionados
             available_comparison_attrs = []
             
             # Lista de atributos potenciais
@@ -968,7 +1016,7 @@ def analytics_section():
             
             # Verificar quais atributos existem e têm dados para todos os jogadores selecionados
             for attr in potential_attrs:
-                if attr in players_data.columns and not players_data[attr].isnull().all():
+                if attr in career_data.columns and not career_data[attr].isnull().all():
                     available_comparison_attrs.append(attr)
             
             # Selecionar múltiplos atributos para comparação
@@ -980,9 +1028,9 @@ def analytics_section():
                     key="attributes_comparison"
                 )
                 
-                # NOVO CÓDIGO:
+                # Criar gráfico de comparação com dados de carreira
                 if selected_attributes:
-                    chart = create_comparison_chart(df, selected_players, selected_attributes)
+                    chart = create_comparison_chart(career_data, selected_players, selected_attributes)
                     if chart is not None:
                         try:
                             st.plotly_chart(chart, use_container_width=True)
@@ -990,16 +1038,14 @@ def analytics_section():
                             st.error(f"Erro ao renderizar o gráfico: {str(e)}")
                             st.write("Tente selecionar atributos diferentes ou outros jogadores.")
                 
-                    
                     # Mostrar estatísticas resumidas
                     st.subheader("Estatísticas Resumidas")
-                    comparison_data = df[df['NOME'].isin(selected_players)]
                     summary_table = pd.DataFrame(index=selected_players)
                     
                     for attr in selected_attributes:
-                        if attr in comparison_data.columns:
+                        if attr in career_data.columns:
                             for player in selected_players:
-                                player_data = comparison_data[comparison_data['NOME'] == player]
+                                player_data = career_data[career_data['NOME'] == player]
                                 if not player_data.empty:
                                     summary_table.loc[player, attr] = player_data[attr].iloc[0]
                     
