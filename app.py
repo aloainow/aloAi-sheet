@@ -782,19 +782,51 @@ def create_comparison_chart(df, players, attribute):
         st.error(f"Erro ao criar gráfico de comparação: {str(e)}")
         # Em caso de erro, criar gráfico de barras como fallback
         try:
-            bar_fig = px.bar(
-                comparison_data,
-                x='NOME',
-                y=attribute,
-                color='LIGA',
-                barmode='group',
-                title=f'Comparação de {attribute}',
-                labels={
-                    'NOME': 'Jogador',
-                    attribute: 'Valor'
-                },
-                height=500
-            )
+           # Coletar alguns atributos adicionais para o radar
+radar_attrs = [attribute]  # Começar com o atributo selecionado
+for attr in ['PTS', 'RT', 'AS', 'BS', 'ST']:
+    if attr in comparison_data.columns and attr != attribute:
+        radar_attrs.append(attr)
+
+# Normalizar os valores
+max_values = {}
+for attr in radar_attrs:
+    max_values[attr] = comparison_data[attr].max() if comparison_data[attr].max() > 0 else 1
+
+# Criar figura do radar
+fig = go.Figure()
+
+# Adicionar cada jogador
+for player in players:
+    player_data = comparison_data[comparison_data['NOME'] == player]
+    if not player_data.empty:
+        values = []
+        for attr in radar_attrs:
+            val = player_data[attr].iloc[0]
+            # Normalizar para escala 0-100
+            val_norm = (val / max_values[attr]) * 100
+            values.append(val_norm)
+        
+        # Adicionar ao gráfico
+        fig.add_trace(go.Scatterpolar(
+            r=values,
+            theta=radar_attrs,
+            fill='toself',
+            name=player
+        ))
+
+# Configurar layout
+fig.update_layout(
+    polar=dict(
+        radialaxis=dict(
+            visible=True,
+            range=[0, 100]
+        )
+    ),
+    title=f'Comparação de Estatísticas',
+    showlegend=True,
+    height=500
+)
             return bar_fig
         except:
             return None
