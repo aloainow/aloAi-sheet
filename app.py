@@ -942,51 +942,76 @@ def analytics_section():
     tab1, tab2 = st.tabs(["Evolução Individual", "Comparação entre Jogadores"])
     
     with tab1:
-        st.subheader("Evolução Individual")
+    st.subheader("Evolução Individual")
+    
+    # Selecionar um jogador
+    player_names = sorted(df['NOME'].unique())
+    selected_player = st.selectbox(
+        "Selecione um jogador para ver sua evolução",
+        player_names,
+        key="player_evolution"
+    )
+    
+    # Obter dados do jogador
+    if selected_player:
+        player_data = df[df['NOME'] == selected_player]
+        available_attrs = []
         
-        # Selecionar um jogador
-        player_names = sorted(df['NOME'].unique())
-        selected_player = st.selectbox(
-            "Selecione um jogador para ver sua evolução",
-            player_names,
-            key="player_evolution"
-        )
+        # Lista de atributos potenciais
+        potential_attrs = ['PTS', 'RT', 'AS', 'RD', 'RO', 'BS', 'ST', 'RNK', '3FGP', '2FGP', 'FT']
         
-        # Obter dados do jogador
-        if selected_player:
-            player_data = df[df['NOME'] == selected_player]
-            available_attrs = []
+        # Verificar quais atributos existem e têm dados variáveis
+        for attr in potential_attrs:
+            if attr in player_data.columns and not player_data[attr].isnull().all():
+                # Verificar se há variação nos dados (mais de um valor único)
+                if len(player_data[attr].unique()) > 1:
+                    available_attrs.append(attr)
+        
+        # Selecionar atributos para visualização
+        if available_attrs:
+            selected_attributes = st.multiselect(
+                "Selecione os atributos para visualizar a evolução",
+                available_attrs,
+                default=available_attrs[:3] if len(available_attrs) >= 3 else available_attrs,
+                key="attributes_evolution"
+            )
             
-            # Lista de atributos potenciais
-            potential_attrs = ['PTS', 'RT', 'AS', 'RD', 'RO', 'BS', 'ST', 'RNK', '3FGP', '2FGP', 'FT']
-            
-            # Verificar quais atributos existem e têm dados variáveis
-            for attr in potential_attrs:
-                if attr in player_data.columns and not player_data[attr].isnull().all():
-                    # Verificar se há variação nos dados (mais de um valor único)
-                    if len(player_data[attr].unique()) > 1:
-                        available_attrs.append(attr)
-            
-            # Selecionar atributos para visualização
-            if available_attrs:
-                selected_attributes = st.multiselect(
-                    "Selecione os atributos para visualizar a evolução",
-                    available_attrs,
-                    default=available_attrs[:3] if len(available_attrs) >= 3 else available_attrs,
-                    key="attributes_evolution"
-                )
-                
-                # Criar gráfico de evolução
-                if selected_attributes:
-                    chart = create_evolution_chart(df, selected_player, selected_attributes)
-                    if chart is not None:
-                        st.plotly_chart(chart, use_container_width=True)
-                    else:
-                        st.warning("Não foi possível criar o gráfico com os dados selecionados.")
+            # Criar gráfico de evolução
+            if selected_attributes:
+                chart = create_evolution_chart(df, selected_player, selected_attributes)
+                if chart is not None:
+                    st.plotly_chart(chart, use_container_width=True)
                 else:
-                    st.info("Selecione pelo menos um atributo para visualizar.")
+                    st.warning("Não foi possível criar o gráfico com os dados selecionados.")
+                    
+                # Adicionar tabela com estatísticas por temporada
+                st.subheader("Estatísticas por Temporada")
+                
+                # Ordenar dados por temporada
+                player_season_data = player_data.sort_values(by='TEMPORADA')
+                
+                # Colunas importantes para mostrar
+                display_columns = ['TEMPORADA', 'EQUIPE', 'LIGA', 'J', 'MIN']
+                
+                # Adicionar todas as estatísticas disponíveis
+                stats_columns = ['PTS', 'RT', 'AS', 'RD', 'RO', 'BS', 'ST', 'RNK', '3FGP', '2FGP', 'FT']
+                for col in stats_columns:
+                    if col in player_season_data.columns:
+                        display_columns.append(col)
+                
+                # Filtrar colunas que existem no DataFrame
+                display_columns = [col for col in display_columns if col in player_season_data.columns]
+                
+                # Exibir a tabela com as estatísticas por temporada
+                st.dataframe(
+                    player_season_data[display_columns],
+                    use_container_width=True,
+                    height=400
+                )
             else:
-                st.warning("Não há dados suficientes para criar um gráfico de evolução para este jogador.")
+                st.info("Selecione pelo menos um atributo para visualizar.")
+        else:
+            st.warning("Não há dados suficientes para criar um gráfico de evolução para este jogador.")
     
     with tab2:
         st.subheader("Comparação entre Jogadores")
