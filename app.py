@@ -942,7 +942,7 @@ def analytics_section():
     tab1, tab2 = st.tabs(["Evolução Individual", "Comparação entre Jogadores"])
     
     with tab1:
-        # ... código existente para tab1 ...
+    pass  # Placeholder - add tab1 code here later
     
     with tab2:
         st.subheader("Comparação entre Jogadores")
