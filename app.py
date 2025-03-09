@@ -692,7 +692,7 @@ def create_evolution_chart(df, player_name, attributes):
         return None
 
 def create_comparison_chart(df, players, attribute):
-    """Cria gráfico de comparação (radar) de um atributo entre diferentes jogadores"""
+    """Cria gráfico de comparação de um atributo entre diferentes jogadores"""
     try:
         # Verificar se o atributo está disponível
         if attribute not in df.columns:
@@ -711,30 +711,12 @@ def create_comparison_chart(df, players, attribute):
             if comparison_data[attribute].dtype == 'object':
                 comparison_data[attribute] = comparison_data[attribute].str.rstrip('%').astype('float')
         
-        # Coletar todos os atributos disponíveis que podem ser usados para o radar
-        available_attrs = ['PTS', 'RT', 'AS', 'BS', 'ST']
-        radar_attrs = [attr for attr in available_attrs if attr in comparison_data.columns 
-                      and not comparison_data[attr].isnull().all()]
-        
-        # Adicionar o atributo selecionado se não estiver na lista
-        if attribute not in radar_attrs and attribute in comparison_data.columns:
-            radar_attrs.append(attribute)
-        
-        # Verificar se há atributos suficientes para o radar
-        if len(radar_attrs) < 3:
-            return px.bar(
-                comparison_data,
-                x='NOME',
-                y=attribute,
-                color='LIGA',
-                barmode='group',
-                title=f'Comparação de {attribute}',
-                labels={
-                    'NOME': 'Jogador',
-                    attribute: 'Valor'
-                },
-                height=500
-            )
+        # Coletar as principais estatísticas que serão mostradas no radar
+        radar_attrs = ['PTS', 'RT', 'AS', 'BS', 'ST', attribute]
+        # Remover duplicados (caso attribute já esteja na lista)
+        radar_attrs = list(dict.fromkeys(radar_attrs))
+        # Filtrar apenas atributos que existem nos dados
+        radar_attrs = [attr for attr in radar_attrs if attr in comparison_data.columns]
         
         # Normalizar valores para o gráfico radar
         max_values = {}
@@ -784,7 +766,25 @@ def create_comparison_chart(df, players, attribute):
         return fig
     except Exception as e:
         st.error(f"Erro ao criar gráfico de comparação: {str(e)}")
-        return None
+        # Em caso de erro, reverter para o gráfico de barras
+        try:
+            bar_fig = px.bar(
+                comparison_data,
+                x='NOME',
+                y=attribute,
+                color='LIGA',
+                barmode='group',
+                title=f'Comparação de {attribute}',
+                labels={
+                    'NOME': 'Jogador',
+                    attribute: 'Valor'
+                },
+                height=500
+            )
+            return bar_fig
+        except:
+            return None
+            
 def text_query_section():
     """Seção de consultas por texto livre"""
     st.header("🔍 Consulta por Texto")
