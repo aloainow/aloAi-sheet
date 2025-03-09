@@ -694,96 +694,93 @@ def create_evolution_chart(df, player_name, attributes):
 def create_comparison_chart(df, players, attribute):
     """Cria gráfico de comparação de um atributo entre diferentes jogadores"""
     try:
-        # Verificar se o atributo está disponível
-        if attribute not in df.columns:
-            st.error(f"O atributo '{attribute}' não está disponível nos dados")
-            return None
+    # Verificar se o atributo está disponível
+    if attribute not in df.columns:
+        st.error(f"O atributo '{attribute}' não está disponível nos dados")
+        return None
+        
+    # Filtrar dados dos jogadores selecionados
+    comparison_data = df[df['NOME'].isin(players)]
+    
+    if comparison_data.empty:
+        st.error("Não foram encontrados dados para os jogadores selecionados")
+        return None
+    
+    # Tratar percentuais para plotagem
+    if attribute in ['2FGP', '3FGP', 'FT'] and attribute in comparison_data.columns:
+        if comparison_data[attribute].dtype == 'object':
+            comparison_data[attribute] = comparison_data[attribute].str.rstrip('%').astype('float')
+    
+    # Coletar estatísticas principais para o radar
+    radar_attrs = []
+    
+    # Adicionar atributos mais comuns se disponíveis
+    for attr in ['PTS', 'RT', 'AS', 'BS', 'ST', attribute]:
+        if attr in comparison_data.columns and not attr in radar_attrs:
+            radar_attrs.append(attr)
+    
+    # Criar figura para o radar
+    fig = go.Figure()
+    
+    # Calcular valores máximos para normalização
+    max_values = {}
+    for attr in radar_attrs:
+        max_values[attr] = comparison_data[attr].max() if comparison_data[attr].max() > 0 else 1
+    
+    # Adicionar dados de cada jogador
+    for player in players:
+        player_data = comparison_data[comparison_data['NOME'] == player]
+        if not player_data.empty:
+            values = []
+            for attr in radar_attrs:
+                val = player_data[attr].iloc[0]
+                # Normalizar para escala 0-100
+                val_norm = (val / max_values[attr]) * 100
+                values.append(val_norm)
             
-        # Filtrar dados dos jogadores selecionados
-        comparison_data = df[df['NOME'].isin(players)]
-        
-        if comparison_data.empty:
-            st.error("Não foram encontrados dados para os jogadores selecionados")
-            return None
-        
-        # Tratar percentuais para plotagem
-        if attribute in ['2FGP', '3FGP', 'FT'] and attribute in comparison_data.columns:
-            if comparison_data[attribute].dtype == 'object':
-                comparison_data[attribute] = comparison_data[attribute].str.rstrip('%').astype('float')
-        
-        # Coletar as principais estatísticas que serão mostradas no radar
-        radar_attrs = ['PTS', 'RT', 'AS', 'BS', 'ST', attribute]
-        # Remover duplicados (caso attribute já esteja na lista)
-        radar_attrs = list(dict.fromkeys(radar_attrs))
-        # Filtrar apenas atributos que existem nos dados
-        radar_attrs = [attr for attr in radar_attrs if attr in comparison_data.columns]
-        
-        # Normalizar valores para o gráfico radar
-        max_values = {}
-        for attr in radar_attrs:
-            max_val = comparison_data[attr].max()
-            max_values[attr] = max_val if max_val > 0 else 1
-        
-        # Criar figura para o radar
-        fig = go.Figure()
-        
-        # Adicionar um traço (trace) para cada jogador
-        for player in players:
-            player_data = comparison_data[comparison_data['NOME'] == player]
-            if not player_data.empty:
-                # Criar lista de valores normalizados para o radar chart
-                values = []
-                for attr in radar_attrs:
-                    if attr in player_data.columns:
-                        val = player_data[attr].iloc[0]
-                        # Normalizar valor (0-100)
-                        val_norm = (val / max_values[attr]) * 100
-                        values.append(val_norm)
-                    else:
-                        values.append(0)
-                
-                # Adicionar traço para o jogador
-                fig.add_trace(go.Scatterpolar(
-                    r=values,
-                    theta=radar_attrs,
-                    fill='toself',
-                    name=player
-                ))
-        
-        # Atualizar layout
-        fig.update_layout(
-            polar=dict(
-                radialaxis=dict(
-                    visible=True,
-                    range=[0, 100]
-                )
-            ),
-            title=f'Comparação de Estatísticas',
-            showlegend=True,
+            # Adicionar ao gráfico
+            fig.add_trace(go.Scatterpolar(
+                r=values,
+                theta=radar_attrs,
+                fill='toself',
+                name=player
+            ))
+    
+    # Atualizar layout
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100]
+            )
+        ),
+        title=f'Comparação de Estatísticas',
+        showlegend=True,
+        height=500
+    )
+    
+    return fig
+
+except Exception as e:
+    st.error(f"Erro ao criar gráfico de comparação: {str(e)}")
+    # Em caso de erro, criar gráfico de barras como fallback
+    try:
+        bar_fig = px.bar(
+            comparison_data,
+            x='NOME',
+            y=attribute,
+            color='LIGA',
+            barmode='group',
+            title=f'Comparação de {attribute}',
+            labels={
+                'NOME': 'Jogador',
+                attribute: 'Valor'
+            },
             height=500
         )
-        
-        return fig
-    except Exception as e:
-        st.error(f"Erro ao criar gráfico de comparação: {str(e)}")
-        # Em caso de erro, reverter para o gráfico de barras
-        try:
-            bar_fig = px.bar(
-                comparison_data,
-                x='NOME',
-                y=attribute,
-                color='LIGA',
-                barmode='group',
-                title=f'Comparação de {attribute}',
-                labels={
-                    'NOME': 'Jogador',
-                    attribute: 'Valor'
-                },
-                height=500
-            )
-            return bar_fig
-        except:
-            return None
+        return bar_fig
+    except:
+        return None
             
 def text_query_section():
     """Seção de consultas por texto livre"""
