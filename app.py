@@ -910,7 +910,7 @@ def text_query_section():
 
 # ================ PARTE 4 - SEÇÕES PRINCIPAIS E MAIN ================
 
-pydef analytics_section():
+def analytics_section():
     """Seção de análises e visualizações"""
     st.header("📊 Análise de Evolução")
     
