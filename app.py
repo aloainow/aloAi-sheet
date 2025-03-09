@@ -1004,60 +1004,60 @@ def analytics_section():
             player_data = df[df['NOME'] == selected_player]
             st.dataframe(player_data, use_container_width=True)
     
-   with tab2:
-    st.subheader("Comparação entre Jogadores")
-    
-    # Selecionar múltiplos jogadores
-    selected_players = st.multiselect(
-        "Selecione os jogadores para comparar",
-        player_names,
-        default=player_names[:2] if len(player_names) >= 2 else player_names,
-        key="players_comparison"
-    )
-    
-    # Obter atributos disponíveis para os jogadores selecionados
-    if selected_players:
-        players_data = df[df['NOME'].isin(selected_players)]
-        available_comparison_attrs = []
+    with tab2:
+        st.subheader("Comparação entre Jogadores")
         
-        # Verificar quais atributos existem e têm dados para todos os jogadores selecionados
-        for attr in potential_attrs:
-            if attr in players_data.columns and not players_data[attr].isnull().all():
-                available_comparison_attrs.append(attr)
+        # Selecionar múltiplos jogadores
+        selected_players = st.multiselect(
+            "Selecione os jogadores para comparar",
+            player_names,
+            default=player_names[:2] if len(player_names) >= 2 else player_names,
+            key="players_comparison"
+        )
         
-        # Selecionar múltiplos atributos para comparação
-        if available_comparison_attrs:
-            selected_attributes = st.multiselect(
-                "Selecione os atributos para comparar",
-                available_comparison_attrs,
-                default=available_comparison_attrs[:5] if len(available_comparison_attrs) >= 5 else available_comparison_attrs,
-                key="attributes_comparison"
-            )
+        # Obter atributos disponíveis para os jogadores selecionados
+        if selected_players:
+            players_data = df[df['NOME'].isin(selected_players)]
+            available_comparison_attrs = []
             
-            if selected_attributes:
-                chart = create_comparison_chart(df, selected_players, selected_attributes)
-                if chart:
-                    st.plotly_chart(chart, use_container_width=True)
+            # Verificar quais atributos existem e têm dados para todos os jogadores selecionados
+            for attr in potential_attrs:
+                if attr in players_data.columns and not players_data[attr].isnull().all():
+                    available_comparison_attrs.append(attr)
+            
+            # Selecionar múltiplos atributos para comparação
+            if available_comparison_attrs:
+                selected_attributes = st.multiselect(
+                    "Selecione os atributos para comparar",
+                    available_comparison_attrs,
+                    default=available_comparison_attrs[:5] if len(available_comparison_attrs) >= 5 else available_comparison_attrs,
+                    key="attributes_comparison"
+                )
                 
-                # Mostrar estatísticas resumidas
-                st.subheader("Estatísticas Resumidas")
-                comparison_data = df[df['NOME'].isin(selected_players)]
-                summary_table = pd.DataFrame(index=selected_players)
-                
-                for attr in selected_attributes:
-                    if attr in comparison_data.columns:
-                        for player in selected_players:
-                            player_data = comparison_data[comparison_data['NOME'] == player]
-                            if not player_data.empty:
-                                summary_table.loc[player, attr] = player_data[attr].iloc[0]
-                
-                st.dataframe(summary_table.round(2), use_container_width=True)
+                if selected_attributes:
+                    chart = create_comparison_chart(df, selected_players, selected_attributes)
+                    if chart:
+                        st.plotly_chart(chart, use_container_width=True)
+                    
+                    # Mostrar estatísticas resumidas
+                    st.subheader("Estatísticas Resumidas")
+                    comparison_data = df[df['NOME'].isin(selected_players)]
+                    summary_table = pd.DataFrame(index=selected_players)
+                    
+                    for attr in selected_attributes:
+                        if attr in comparison_data.columns:
+                            for player in selected_players:
+                                player_data = comparison_data[comparison_data['NOME'] == player]
+                                if not player_data.empty:
+                                    summary_table.loc[player, attr] = player_data[attr].iloc[0]
+                    
+                    st.dataframe(summary_table.round(2), use_container_width=True)
+                else:
+                    st.info("Selecione ao menos um atributo para comparação.")
             else:
-                st.info("Selecione ao menos um atributo para comparação.")
+                st.warning("Não há atributos numéricos disponíveis para comparação entre os jogadores selecionados.")
         else:
-            st.warning("Não há atributos numéricos disponíveis para comparação entre os jogadores selecionados.")
-    else:
-        st.info("Selecione ao menos um jogador para comparação.")
+            st.info("Selecione ao menos um jogador para comparação.")
 def queries_section():
     """Seção de consultas por categoria com filtro de gênero, ano de nascimento e país"""
     st.header("🔍 Consultas por Categoria")
